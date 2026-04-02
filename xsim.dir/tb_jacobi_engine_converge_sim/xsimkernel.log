@@ -1,7 +1,0 @@
-Running: xsim.dir/tb_jacobi_engine_converge_sim/xsimk -runall -simmode gui -wdb tb_jacobi_engine_converge_sim.wdb -simrunnum 0 -socket 51929
-Design successfully loaded
-Design Loading Memory Usage: 306752 KB (Peak: 306752 KB)
-Design Loading CPU Usage: 20 ms
-Simulation completed
-Simulation Memory Usage: 393308 KB (Peak: 446104 KB)
-Simulation CPU Usage: 50 ms

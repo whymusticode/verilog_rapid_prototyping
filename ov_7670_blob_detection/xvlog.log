@@ -1,4 +1,0 @@
-INFO: [VRFC 10-2263] Analyzing Verilog file "/workspace/ov_7670_blob_detection/blob_bg_model_qvga.v" into library work
-INFO: [VRFC 10-311] analyzing module blob_bg_model_qvga
-INFO: [VRFC 10-2263] Analyzing Verilog file "/workspace/ov_7670_blob_detection/tb_blob_bg_model.v" into library work
-INFO: [VRFC 10-311] analyzing module tb_blob_bg_model
