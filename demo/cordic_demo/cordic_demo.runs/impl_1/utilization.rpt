@@ -1,0 +1,31 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2024.1 (lin64) Build 5076996 Wed May 22 18:36:09 MDT 2024
+| Date         : Thu Mar 12 18:01:45 2026
+| Host         : e2f927581db6 running 64-bit unknown
+| Command      : report_utilization -file /workspace/demo/cordic_demo/cordic_demo.runs/impl_1/utilization.rpt -hierarchical
+| Design       : top
+| Device       : xc7a35tcpg236-1
+| Speed File   : -1
+| Design State : Routed
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++------------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+|  Instance  | Module | Total LUTs | Logic LUTs | LUTRAMs | SRLs | FFs | RAMB36 | RAMB18 | DSP Blocks |
++------------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+| top        |  (top) |       1475 |       1475 |       0 |    0 | 860 |      0 |      0 |          1 |
+|   (top)    |  (top) |        671 |        671 |       0 |    0 |  70 |      0 |      0 |          1 |
+|   u_cordic | cordic |        804 |        804 |       0 |    0 | 790 |      0 |      0 |          0 |
++------------+--------+------------+------------+---------+------+-----+--------+--------+------------+
+* Note: The sum of lower-level cells may be larger than their parent cells total, due to cross-hierarchy LUT combining
+
+

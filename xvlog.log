@@ -1,0 +1,16 @@
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/uart_rx.v" into library work
+INFO: [VRFC 10-311] analyzing module uart_rx
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/uart_tx.v" into library work
+INFO: [VRFC 10-311] analyzing module uart_tx
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/complex_mul_3dsp.v" into library work
+INFO: [VRFC 10-311] analyzing module complex_mul_3dsp
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/cmatmul10x10_dsp.v" into library work
+INFO: [VRFC 10-311] analyzing module cmatmul10x10_dsp
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/pivot_pairs_10x10.v" into library work
+INFO: [VRFC 10-311] analyzing module pivot_pairs_10x10
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/jacobi_sweep10x10.v" into library work
+INFO: [VRFC 10-311] analyzing module jacobi_sweep10x10
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/rtl/jacobi_engine10x10.v" into library work
+INFO: [VRFC 10-311] analyzing module jacobi_engine10x10
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/workspace/evd_10x10/sim/tb_jacobi_engine_converge.v" into library work
+INFO: [VRFC 10-311] analyzing module tb_jacobi_engine_converge

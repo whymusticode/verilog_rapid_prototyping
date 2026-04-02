@@ -1,0 +1,19 @@
+Here are the key specs for the XC7A35T-1CPG236C (Artix-7 family):
+
+Logic Resources
+ResourceCountLogic Cells33,280CLB Slices5,200CLB LUTs20,800Flip-Flops41,600
+
+DSP & Memory
+ResourceCountDSP48E1 Slices90Block RAM (36Kb)50Block RAM (18Kb equiv.)100Total Block RAM1,800 KbDistributed RAM400 Kb
+
+Clocking & I/O
+ResourceCountCMTs (MMCM + PLL each)5MMCMs5PLLs5User I/O (CPG236 pkg)106Max differential pairs48
+
+Transceivers & Other
+ResourceCountGTP Transceivers0 (A35T has none)PCIe Blocks0XADC (12-bit ADC)1
+
+Device Details
+FieldValueFamilyArtix-7Speed Grade-1 (slowest/commercial)PackageCPG236 (236-ball BGA, 10×10mm)Temp RangeC = Commercial (0°C to +85°C)Process28nm HPL
+
+
+Note: The -1 speed grade is the slowest commercial grade — if timing is tight, consider -2 or -3 variants. The CPG236 package limits I/O to 106 pins vs. the 250 available in larger packages for this die.

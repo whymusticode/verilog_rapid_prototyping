@@ -1,0 +1,18 @@
+
+
+---
+description: run simulation and extract errors
+globs: 
+alwaysApply: false
+---
+
+When I ask you to run a simulation, we need to iterate untill the code is verified to work:
+without my input you need to 
+1) simulate the code
+`cd /Users/mbenton/Desktop/basys && source .functions 2>/dev/null; sim current_function 2>&1 | grep -E "place your own intelligent markers in the code"`
+2) fix the code based on the display messages
+3) add more display messages to the code to test use cases
+
+Only show me the output of the above grep so I will be able to similarly undersand the current progress 
+
+the final step of this process is me reviewing the code and seeing the simulation displays and verifying it works and giving you the go ahead to remove the display messages 

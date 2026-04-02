@@ -1,0 +1,290 @@
+#-----------------------------------------------------------
+# Vivado v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Wed Mar  4 19:56:33 2026
+# Process ID: 131
+# Current directory: /workspace/matmul_10x10/matmul_10x10/matmul_10x10.runs/synth_1
+# Command line: vivado -log top.vds -product Vivado -mode batch -messageDb vivado.pb -notrace -source top.tcl
+# Log file: /workspace/matmul_10x10/matmul_10x10/matmul_10x10.runs/synth_1/top.vds
+# Journal file: /workspace/matmul_10x10/matmul_10x10/matmul_10x10.runs/synth_1/vivado.jou
+# Running On        :1ba1ac7db93f
+# Platform          :unknown
+# Operating System  :unknown
+# Processor Detail  :VirtualApple @ 2.50GHz
+# CPU Frequency     :2502.057 MHz
+# CPU Physical cores:16
+# CPU Logical cores :16
+# Host memory       :8216 MB
+# Swap memory       :1073 MB
+# Total Virtual     :9290 MB
+# Available Virtual :5241 MB
+#-----------------------------------------------------------
+source top.tcl -notrace
+Command: synth_design -top top -part xc7a35tcpg236-1
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xc7a35t'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xc7a35t'
+INFO: [Device 21-403] Loading part xc7a35tcpg236-1
+INFO: [Device 21-9227] Part: xc7a35tcpg236-1 does not have CEAM library.
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 4 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 138
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:03 ; elapsed = 00:00:03 . Memory (MB): peak = 2614.590 ; gain = 412.762 ; free physical = 758 ; free virtual = 3487
+---------------------------------------------------------------------------------
+INFO: [Synth 8-6157] synthesizing module 'top' [/workspace/matmul_10x10/top.v:4]
+INFO: [Synth 8-155] case statement is not full and has no default [/workspace/matmul_10x10/top.v:30]
+INFO: [Synth 8-6155] done synthesizing module 'top' (0#1) [/workspace/matmul_10x10/top.v:4]
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:05 ; elapsed = 00:00:05 . Memory (MB): peak = 2693.371 ; gain = 491.543 ; free physical = 459 ; free virtual = 3187
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:05 ; elapsed = 00:00:05 . Memory (MB): peak = 2708.391 ; gain = 506.562 ; free physical = 439 ; free virtual = 3167
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:05 ; elapsed = 00:00:05 . Memory (MB): peak = 2708.391 ; gain = 506.562 ; free physical = 439 ; free virtual = 3167
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2709.059 ; gain = 0.059 ; free physical = 427 ; free virtual = 3155
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [/workspace/matmul_10x10/Basys3.xdc]
+Finished Parsing XDC File [/workspace/matmul_10x10/Basys3.xdc]
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/workspace/matmul_10x10/Basys3.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/top_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/top_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2848.512 ; gain = 0.000 ; free physical = 419 ; free virtual = 3147
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2848.645 ; gain = 0.074 ; free physical = 419 ; free virtual = 3147
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:10 ; elapsed = 00:00:10 . Memory (MB): peak = 2849.855 ; gain = 648.027 ; free physical = 417 ; free virtual = 3146
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xc7a35tcpg236-1
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:10 ; elapsed = 00:00:10 . Memory (MB): peak = 2857.980 ; gain = 656.152 ; free physical = 417 ; free virtual = 3146
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:10 ; elapsed = 00:00:10 . Memory (MB): peak = 2858.035 ; gain = 656.207 ; free physical = 417 ; free virtual = 3146
+---------------------------------------------------------------------------------
+INFO: [Synth 8-802] inferred FSM for state register 'state_reg' in module 'top'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                  S_INIT |                              001 |                               00
+               S_COMPUTE |                              010 |                               01
+                  S_DONE |                              100 |                               10
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'state_reg' using encoding 'one-hot' in module 'top'
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:10 ; elapsed = 00:00:10 . Memory (MB): peak = 2859.703 ; gain = 657.875 ; free physical = 406 ; free virtual = 3135
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input    7 Bit       Adders := 1     
+	   2 Input    4 Bit       Adders := 1     
++---Registers : 
+	               20 Bit    Registers := 1     
+	               16 Bit    Registers := 1     
+	                7 Bit    Registers := 1     
+	                4 Bit    Registers := 2     
++---RAMs : 
+	              800 Bit	(100 X 8 bit)          RAMs := 1     
+	              128 Bit	(16 X 8 bit)          RAMs := 1     
++---Muxes : 
+	   3 Input   20 Bit        Muxes := 1     
+	   2 Input   16 Bit        Muxes := 1     
+	   3 Input    4 Bit        Muxes := 1     
+	   2 Input    1 Bit        Muxes := 1     
+	   3 Input    1 Bit        Muxes := 5     
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 90 (col length:60)
+BRAMs: 100 (col length: RAMB18 60 RAMB36 30)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-7080] Parallel synthesis criteria is not met
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:00:11 ; elapsed = 00:00:11 . Memory (MB): peak = 2861.215 ; gain = 659.387 ; free physical = 399 ; free virtual = 3128
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Distributed RAM: Preliminary Mapping Report (see note below)
++------------+------------+-----------+----------------------+-------------+
+|Module Name | RTL Object | Inference | Size (Depth x Width) | Primitives  | 
++------------+------------+-----------+----------------------+-------------+
+|top         | B_reg      | Implied   | 128 x 1              | RAM64M x 6  | 
+|top         | A_reg      | Implied   | 16 x 1               | RAM32M x 2  | 
++------------+------------+-----------+----------------------+-------------+
+
+Note: The table above is a preliminary report that shows the Distributed RAMs at the current stage of the synthesis flow. Some Distributed RAMs may be reimplemented as non Distributed RAM primitives later in the synthesis flow. Multiple instantiated RAMs are reported only once.
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:00:16 ; elapsed = 00:00:17 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 390 ; free virtual = 3119
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:00:16 ; elapsed = 00:00:17 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 390 ; free virtual = 3119
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Distributed RAM: Final Mapping Report
++------------+------------+-----------+----------------------+-------------+
+|Module Name | RTL Object | Inference | Size (Depth x Width) | Primitives  | 
++------------+------------+-----------+----------------------+-------------+
+|top         | B_reg      | Implied   | 128 x 1              | RAM64M x 6  | 
+|top         | A_reg      | Implied   | 16 x 1               | RAM32M x 2  | 
++------------+------------+-----------+----------------------+-------------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:00:16 ; elapsed = 00:00:17 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 390 ; free virtual = 3119
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+Report BlackBoxes: 
++-+--------------+----------+
+| |BlackBox name |Instances |
++-+--------------+----------+
++-+--------------+----------+
+
+Report Cell Usage: 
++------+---------+------+
+|      |Cell     |Count |
++------+---------+------+
+|1     |BUFG     |     1|
+|2     |CARRY4   |     5|
+|3     |LUT1     |     1|
+|4     |LUT2     |    44|
+|5     |LUT3     |     5|
+|6     |LUT4     |     8|
+|7     |LUT5     |     5|
+|8     |LUT6     |     7|
+|9     |MUXF7    |     1|
+|10    |RAM32X1D |     2|
+|11    |RAM64X1D |     2|
+|12    |FDRE     |    46|
+|13    |IBUF     |     2|
+|14    |OBUF     |    16|
++------+---------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 1 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:00:17 ; elapsed = 00:00:18 . Memory (MB): peak = 2907.430 ; gain = 564.914 ; free physical = 394 ; free virtual = 3123
+Synthesis Optimization Complete : Time (s): cpu = 00:00:19 ; elapsed = 00:00:19 . Memory (MB): peak = 2907.430 ; gain = 705.602 ; free physical = 394 ; free virtual = 3123
+INFO: [Project 1-571] Translating synthesized netlist
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2907.430 ; gain = 0.000 ; free physical = 873 ; free virtual = 3602
+INFO: [Netlist 29-17] Analyzing 10 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2907.430 ; gain = 0.000 ; free physical = 872 ; free virtual = 3601
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 4 instances were transformed.
+  RAM32X1D => RAM32X1D (RAMD32(x2)): 2 instances
+  RAM64X1D => RAM64X1D (RAMD64E(x2)): 2 instances
+
+Synth Design complete | Checksum: 552ded67
+INFO: [Common 17-83] Releasing license: Synthesis
+21 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:00:29 ; elapsed = 00:00:24 . Memory (MB): peak = 2907.430 ; gain = 1079.738 ; free physical = 872 ; free virtual = 3601
+INFO: [Common 17-2834] synth_design peak Physical Memory [PSS] (MB): overall = 2331.093; main = 1813.325; forked = 567.375
+INFO: [Common 17-2834] synth_design peak Virtual Memory [VSS] (MB): overall = 4789.156; main = 2890.371; forked = 1930.297
+Write ShapeDB Complete: Time (s): cpu = 00:00:00.02 ; elapsed = 00:00:00.03 . Memory (MB): peak = 2915.668 ; gain = 0.305 ; free physical = 870 ; free virtual = 3599
+INFO: [Common 17-1381] The checkpoint '/workspace/matmul_10x10/matmul_10x10/matmul_10x10.runs/synth_1/top.dcp' has been generated.
+INFO: [Vivado 12-24828] Executing command : report_utilization -file top_utilization_synth.rpt -pb top_utilization_synth.pb
+INFO: [Common 17-206] Exiting Vivado at Wed Mar  4 19:57:05 2026...

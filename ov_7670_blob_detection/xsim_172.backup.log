@@ -1,0 +1,61 @@
+#-----------------------------------------------------------
+# xsim v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Sat Mar 14 21:07:45 2026
+# Process ID: 172
+# Current directory: /workspace/ov_7670_blob_detection
+# Command line: xsim -mode tcl -source {xsim.dir/tb_blob_bg_model/xsim_script.tcl}
+# Log file: /workspace/ov_7670_blob_detection/xsim.log
+# Journal file: /workspace/ov_7670_blob_detection/xsim.jou
+# Running On        :e3b5893c8117
+# Platform          :unknown
+# Operating System  :unknown
+# Processor Detail  :VirtualApple @ 2.50GHz
+# CPU Frequency     :2502.057 MHz
+# CPU Physical cores:16
+# CPU Logical cores :16
+# Host memory       :67305 MB
+# Swap memory       :1073 MB
+# Total Virtual     :68379 MB
+# Available Virtual :64041 MB
+#-----------------------------------------------------------
+source xsim.dir/tb_blob_bg_model/xsim_script.tcl
+# xsim {tb_blob_bg_model} -autoloadwcfg -runall
+Time resolution is 1 ps
+run -all
+SIMDBG_V frame=000 gain_q8=010 illum=0075 fg=19200 bg0=000
+SIMDBG_V frame=001 gain_q8=010 illum=0150 fg=28520 bg0=000
+SIMDBG_V frame=002 gain_q8=010 illum=0225 fg=47677 bg0=000
+SIMDBG_V frame=003 gain_q8=010 illum=-211 fg=66828 bg0=000
+SIMDBG_V frame=004 gain_q8=010 illum=-135 fg=86028 bg0=000
+SIMDBG_V frame=005 gain_q8=010 illum=0-59 fg=105228 bg0=000
+SIMDBG_V frame=006 gain_q8=010 illum=0018 fg=124428 bg0=000
+SIMDBG_V frame=007 gain_q8=010 illum=0096 fg=17199 bg0=001
+SIMDBG_V frame=008 gain_q8=010 illum=0174 fg=29961 bg0=001
+SIMDBG_V frame=009 gain_q8=010 illum=0251 fg=49102 bg0=001
+SIMDBG_V frame=010 gain_q8=010 illum=-182 fg=68302 bg0=001
+SIMDBG_V frame=011 gain_q8=010 illum=-104 fg=87502 bg0=001
+SIMDBG_V frame=012 gain_q8=010 illum=0-24 fg=106702 bg0=001
+SIMDBG_V frame=013 gain_q8=010 illum=0055 fg=125902 bg0=001
+SIMDBG_V frame=014 gain_q8=010 illum=0136 fg=135642 bg0=001
+SIMDBG_V frame=015 gain_q8=010 illum=0215 fg=154789 bg0=001
+SIMDBG_V frame=016 gain_q8=010 illum=-216 fg=173929 bg0=001
+SIMDBG_V frame=017 gain_q8=010 illum=-135 fg=193129 bg0=001
+SIMDBG_V frame=018 gain_q8=010 illum=0-53 fg=212329 bg0=001
+SIMDBG_V frame=019 gain_q8=010 illum=0029 fg=231529 bg0=001
+SIMDBG_V frame=020 gain_q8=010 illum=0111 fg=15450 bg0=002
+SIMDBG_V frame=021 gain_q8=010 illum=0194 fg=31739 bg0=002
+SIMDBG_V frame=022 gain_q8=010 illum=-236 fg=50891 bg0=002
+SIMDBG_V frame=023 gain_q8=010 illum=-153 fg=70091 bg0=002
+SIMDBG_V frame=024 gain_q8=010 illum=0-69 fg=89291 bg0=002
+SIMDBG_V frame=025 gain_q8=010 illum=0015 fg=108491 bg0=002
+SIMDBG_V frame=026 gain_q8=010 illum=0100 fg=19018 bg0=003
+SIMDBG_V frame=027 gain_q8=010 illum=0184 fg=31130 bg0=003
+SIMDBG_V frame=028 gain_q8=010 illum=-243 fg=50294 bg0=003
+SIMDBG_V frame=029 gain_q8=010 illum=-159 fg=69494 bg0=003
+$finish called at time : 11521110 ns : File "/workspace/ov_7670_blob_detection/tb_blob_bg_model.v" Line 125
+exit
+INFO: xsimkernel Simulation Memory Usage: 1282580 KB (Peak: 1347552 KB), Simulation CPU Usage: 550 ms
+INFO: [Common 17-206] Exiting xsim at Sat Mar 14 21:07:49 2026...

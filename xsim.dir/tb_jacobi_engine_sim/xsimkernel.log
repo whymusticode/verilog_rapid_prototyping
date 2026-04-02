@@ -1,0 +1,7 @@
+Running: xsim.dir/tb_jacobi_engine_sim/xsimk -runall -simmode gui -wdb tb_jacobi_engine_sim.wdb -simrunnum 0 -socket 52083
+Design successfully loaded
+Design Loading Memory Usage: 306704 KB (Peak: 306704 KB)
+Design Loading CPU Usage: 10 ms
+Simulation completed
+Simulation Memory Usage: 393264 KB (Peak: 446056 KB)
+Simulation CPU Usage: 40 ms

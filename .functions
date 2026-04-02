@@ -1,0 +1,58 @@
+
+# JP1 - QSPI
+# 1) sudo usbipd start
+# 2) Attach Basys3 into Docker VM (bus-id from usbipd list; keep this running before program)
+attach() {
+  local busid
+  if ! command -v usbipd >/dev/null 2>&1; then
+    echo "usbipd not found in PATH"
+    return 1
+  fi
+  busid=$(usbipd list | awk '
+    /0403:6010/ {print $1; exit}
+    /Digilent|Basys|FT2232/ {print $1; exit}
+  ')
+  if [ -z "$busid" ]; then
+    echo "Basys not found in usbipd list."
+    usbipd list
+    return 1
+  fi
+  echo "Using bus-id: $busid"
+  usbipd bind -b "$busid" >/dev/null 2>&1 || true
+  docker rm -f usbip-attach >/dev/null 2>&1
+  docker run --rm --privileged --pid=host alpine sh -c 'nsenter -t 1 -m sh -c "for p in $(seq 0 15); do echo $p > /sys/devices/platform/vhci_hcd.0/detach 2>/dev/null || true; done"' >/dev/null 2>&1 || true
+  local cid
+  cid=$(docker run -d --name usbip-attach --privileged --pid=host alpine sh -c "nsenter -t 1 -m usbip attach -r host.docker.internal -b $busid; sleep infinity" 2>/dev/null || true)
+  if [ -z "$cid" ]; then
+    echo "failed to start usbip-attach container"
+    docker run --rm --privileged --pid=host alpine sh -c "nsenter -t 1 -m usbip attach -r host.docker.internal -b $busid" || true
+    return 1
+  fi
+  echo "$cid"
+  sleep 1
+  docker logs usbip-attach || true
+  docker run --rm --privileged --pid=host alpine sh -c 'nsenter -t 1 -m sh -c "cat /sys/devices/platform/vhci_hcd.0/status 2>/dev/null || echo vhci_status_unavailable"'
+  if ! docker run --rm --privileged --pid=host alpine sh -c 'nsenter -t 1 -m sh -c "ls /sys/bus/usb/devices/1-1/idVendor >/dev/null 2>&1"'; then
+    echo "attach incomplete: USB node /sys/bus/usb/devices/1-1 not present"
+    return 1
+  fi
+  echo "attach verified: USB node 1-1 present"
+}
+
+# 3) sim (uses Vivado in Docker, same as build) 
+sim() {
+  docker run --rm -v "$(pwd):/workspace" -w /workspace vivado:latest \
+    /opt/Xilinx/Vivado/2024.1/bin/vivado -mode batch -source "$1/sim.tcl"
+}
+
+# 4) vivado build
+build() {
+  docker run --rm -v "$(pwd):/workspace" -w /workspace vivado:latest \
+    /opt/Xilinx/Vivado/2024.1/bin/vivado -mode batch -source "$1/build.tcl"
+}
+# 5) vivado program
+program() {
+  docker run --rm -v "$(pwd):/workspace" -w /workspace --privileged --pid=host vivado:latest \
+    /opt/Xilinx/Vivado/2024.1/bin/vivado -mode batch -source "$1/program.tcl"
+}
+

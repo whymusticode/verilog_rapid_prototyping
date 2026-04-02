@@ -1,0 +1,14 @@
+xilinx rtfpga
+rt::do_reinfer_area_combined 1
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
+INFO: [Synth 8-5845] Not enough pipeline registers after wide multiplier. Recommended levels of pipeline registers is 2 [/workspace/evd_10x10/rtl/jacobi_sweep10x10.v:74]
