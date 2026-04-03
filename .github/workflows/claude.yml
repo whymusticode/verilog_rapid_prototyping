@@ -1,11 +1,10 @@
 name: Claude
 on:
-  issue_comment:
-    types: [created]
+  issues:
+    types: [opened, labeled]
 
 jobs:
   claude:
-    if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -13,7 +12,19 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: anthropics/claude-code-action@v1
+
+      - name: Auto-fix
+        if: "!contains(github.event.issue.labels.*.name, 'help wanted')"
+        uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: "Read this issue, implement a fix, and open a pull request."
+
+      - name: Plan
+        if: "contains(github.event.issue.labels.*.name, 'help wanted')"
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: "Read this issue and post a detailed implementation plan as a comment. Do not write any code."
