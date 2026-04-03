@@ -20,6 +20,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: "Read this issue, implement a fix, and open a pull request."
+          claude_args: "--allowedTools 'Bash(gh pr create:*)'"
 
       - name: Plan
         if: "contains(github.event.issue.labels.*.name, 'help wanted')"
@@ -28,3 +29,4 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: "Read this issue and post a detailed implementation plan as a comment. Do not write any code."
+          claude_args: "--allowedTools 'Bash(gh pr create:*)'"
