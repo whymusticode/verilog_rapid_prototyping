@@ -1,0 +1,3 @@
+[submodule "ip_submodule/cordic"]
+	path = ip_submodule/cordic
+	url = https://github.com/ZipCPU/cordic

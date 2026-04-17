@@ -1,4 +1,4 @@
-// Basys3 wrapper for ZipCPU cordic (cordic/rtl/cordic.v). SW[15:0]=angle (0..65535 -> 0..2pi).
+// Basys3 wrapper for ZipCPU cordic (ip_submodule/cordic/rtl/cordic.v). SW[15:0]=angle (0..65535 -> 0..2pi).
 // btnC = run once; 7-seg shows sin as 0.xxxx. Result valid 18 cycles after submit.
 module top (
   input        clk,

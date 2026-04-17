@@ -5,7 +5,7 @@ set proj_name cordic_demo
 create_project $proj_name $proj_dir/$proj_name -part xc7a35tcpg236-1 -force
 # RTL blocks (paths relative to basys_root). Add e.g. $basys_root/sqrt/rtl/sqrt.v for sin->sqrt chain.
 set rtl_libs {
-  cordic/rtl/cordic.v
+  ip_submodule/cordic/rtl/cordic.v
 }
 foreach lib $rtl_libs { add_files -fileset sources_1 $basys_root/$lib }
 add_files -fileset sources_1 $proj_dir/top.v

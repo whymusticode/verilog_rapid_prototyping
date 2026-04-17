@@ -51,5 +51,6 @@ __pycache__/
 # === Java (Vivado crash logs) ===
 hs_err_pid*.log
 
-# === Misc generated files ===
-.functions
+
+.env
+notes.sh
