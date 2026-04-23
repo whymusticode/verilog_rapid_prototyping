@@ -1,0 +1,42 @@
+module_name: top
+description: "Eigenvalue and eigenvector computation for a 10x10 complex Hermitian matrix (Jacobi method reference)"
+part: xczu7ev-ffvc1156-2-e
+clock:
+  name: clk
+  freq_hz: 100000000
+reset:
+  name: rst
+  active_level: high
+  sync: true
+parameters:
+  - name: N
+    value: 10
+    description: "Matrix dimension (10x10 Hermitian)"
+  - name: max_iter
+    value: 2000
+    description: "Maximum Jacobi sweep iterations in the reference algorithm"
+inputs: []
+outputs: []
+fixed_point:
+  total_bits: 16
+  frac_bits: 8
+pipeline_stages: 1
+notes:
+  - "Target device from document: Xilinx Zynq UltraScale+ ZU7 (exact part number not given; using representative xczu7ev-ffvc1156-2-e)"
+  - "Input: 10x10 complex Hermitian matrix; elements are either 46-bit signed integer (complex) or 32-bit single-precision float (complex)"
+  - "Output: 10 eigenvalues and 10 eigenvectors"
+  - "Throughput requirement: 1 eigenvalue decomposition per 1 microsecond (100 cycles @ 100 MHz, 200 cycles @ 200 MHz)"
+  - "Algorithm is not strictly fixed to Jacobi; alternatives such as Householder tridiagonalization + polynomial/Newton eigensolvers are acceptable"
+  - "Reference Jacobi operations include max-value search, division, square root, and trig / inverse-trig functions"
+  - "Convergence criterion in reference: max |A[i,j]| (i<j) < 1e-8"
+  - "defaulted: module_name (document did not specify)"
+  - "defaulted: clock.name (document did not specify)"
+  - "defaulted: clock.freq_hz (document lists 100 MHz and 200 MHz as options; 100 MHz default retained)"
+  - "defaulted: reset.name (document did not specify)"
+  - "defaulted: reset.active_level (document did not specify)"
+  - "defaulted: reset.sync (document did not specify)"
+  - "defaulted: inputs (document did not specify port-level signal names/widths)"
+  - "defaulted: outputs (document did not specify port-level signal names/widths)"
+  - "defaulted: fixed_point.total_bits (document did not specify; arithmetic format is open for proposal)"
+  - "defaulted: fixed_point.frac_bits (document did not specify)"
+  - "defaulted: pipeline_stages (document did not specify)"
