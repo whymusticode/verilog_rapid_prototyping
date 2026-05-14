@@ -53,5 +53,5 @@ hs_err_pid*.log
 
 
 .env
-notes.sh
+# notes.sh
 user_prompt_history.md 

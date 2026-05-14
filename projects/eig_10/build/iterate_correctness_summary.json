@@ -1,0 +1,26 @@
+{
+  "phase": "correctness",
+  "stop_reason": "stuck",
+  "stop_detail": "sig=sim_pass=None|sim_n_mis=None|sim_max_err=None|pnr_wns=None|pnr_cycles=None",
+  "rounds": 4,
+  "success": false,
+  "best_effort": true,
+  "relaxed": true,
+  "auto_scale": true,
+  "scale_info": {
+    "updated": false,
+    "total_bits": 46,
+    "frac_bits_before": 14,
+    "frac_bits_after": 14,
+    "saturation_ratio_after": 0.0,
+    "threshold": 0.01
+  },
+  "progress": {
+    "sim_passes": 0,
+    "pnr_passes": 0,
+    "best_cycles": 25162,
+    "best_wns_ns": null
+  },
+  "transcript": "/Users/mbenton/Desktop/verilog_rapid_prototyping/projects/eig_10/build/transcript_iterate_correctness.jsonl",
+  "estimated_cost_usd": 0.7098
+}

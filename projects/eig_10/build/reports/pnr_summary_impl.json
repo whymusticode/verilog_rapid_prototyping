@@ -1,0 +1,16 @@
+{
+  "pass": false,
+  "phase": "impl",
+  "clock_mhz": 100.0,
+  "period_ns": 10.0,
+  "wns_ns": null,
+  "fmax_mhz": null,
+  "util": {},
+  "errors": [
+    {
+      "severity": "ERROR",
+      "msg": "[Coretcl 2-1982] Project file does not exist. Please provide a project file with .xpr extension. Provided: vivado"
+    }
+  ],
+  "log_tail": "#-----------------------------------------------------------\n# Vivado v2024.1 (64-bit)\n# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024\n# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024\n# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024\n# Start of session at: Thu May 14 19:18:42 2026\n# Process ID: 45\n# Current directory: /workspace\n# Command line: vivado vivado -mode batch -nojournal -log reports/vivado_impl.log -source build.tcl\n# Log file: /workspace/reports/vivado_impl.log\n# Journal file: \n# Running On        :0e97dec5ed61\n# Platform          :unknown\n# Operating System  :unknown\n# Processor Detail  :VirtualApple @ 2.50GHz\n# CPU Frequency     :2502.057 MHz\n# CPU Physical cores:16\n# CPU Logical cores :16\n# Host memory       :67305 MB\n# Swap memory       :1073 MB\n# Total Virtual     :68379 MB\n# Available Virtual :67110 MB\n#-----------------------------------------------------------\nopen_project vivado\nERROR: [Coretcl 2-1982] Project file does not exist. Please provide a project file with .xpr extension. Provided: vivado\nINFO: [Common 17-206] Exiting Vivado at Thu May 14 19:18:45 2026..."
+}

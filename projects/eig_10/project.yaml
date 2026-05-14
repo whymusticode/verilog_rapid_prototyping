@@ -1,0 +1,10 @@
+hw: zu7ev
+target_cycles: 200
+algorithm_family: any
+fixed_point:
+  total_bits: 46
+  frac_bits: 14
+clock_mhz: null
+test_inputs:
+  count: 1
+  seed: 0

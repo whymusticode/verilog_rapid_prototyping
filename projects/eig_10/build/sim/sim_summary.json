@@ -1,0 +1,85 @@
+{
+  "pass": false,
+  "cache_hit": false,
+  "tolerance_lsb": 1,
+  "n_compared": 10,
+  "n_mismatched": 10,
+  "max_abs_err_lsb": 34853200686261,
+  "first_mismatches": [
+    {
+      "index": 0,
+      "sim_re": 15150960113406,
+      "sim_im": 0,
+      "ref_re": 17400842896,
+      "ref_im": 0,
+      "abs_err_re": 15133559270510,
+      "abs_err_im": 0
+    },
+    {
+      "index": 1,
+      "sim_re": 2248790216590,
+      "sim_im": 0,
+      "ref_re": 20463450299,
+      "ref_im": 0,
+      "abs_err_re": 2228326766291,
+      "abs_err_im": 0
+    },
+    {
+      "index": 2,
+      "sim_re": 7940440517485,
+      "sim_im": 0,
+      "ref_re": 18254450081,
+      "ref_im": 0,
+      "abs_err_re": 7922186067404,
+      "abs_err_im": 0
+    },
+    {
+      "index": 3,
+      "sim_re": 1262165036378,
+      "sim_im": 0,
+      "ref_re": 18432536089,
+      "ref_im": 0,
+      "abs_err_re": 1243732500289,
+      "abs_err_im": 0
+    },
+    {
+      "index": 4,
+      "sim_re": -2560852180073,
+      "sim_im": 0,
+      "ref_re": 18648787693,
+      "ref_im": 0,
+      "abs_err_re": 2579500967766,
+      "abs_err_im": 0
+    },
+    {
+      "index": 5,
+      "sim_re": 10815824851862,
+      "sim_im": 0,
+      "ref_re": 18173633620,
+      "ref_im": 0,
+      "abs_err_re": 10797651218242,
+      "abs_err_im": 0
+    },
+    {
+      "index": 6,
+      "sim_re": -12602397028709,
+      "sim_im": 0,
+      "ref_re": 16859891180,
+      "ref_im": 0,
+      "abs_err_re": 12619256919889,
+      "abs_err_im": 0
+    },
+    {
+      "index": 7,
+      "sim_re": 34870037155440,
+      "sim_im": 0,
+      "ref_re": 16836469179,
+      "ref_im": 0,
+      "abs_err_re": 34853200686261,
+      "abs_err_im": 0
+    }
+  ],
+  "iter_count": 2000,
+  "cycles": 184060,
+  "log_tail": "#-----------------------------------------------------------\n# xsim v2024.1 (64-bit)\n# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024\n# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024\n# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024\n# Start of session at: Thu May 14 19:53:47 2026\n# Process ID: 140\n# Current directory: /workspace/sim\n# Command line: xsim -mode tcl -source {xsim.dir/tb_top_sim/xsim_script.tcl}\n# Log file: /workspace/sim/xsim.log\n# Journal file: /workspace/sim/xsim.jou\n# Running On        :ad5617627be4\n# Platform          :unknown\n# Operating System  :unknown\n# Processor Detail  :VirtualApple @ 2.50GHz\n# CPU Frequency     :2502.057 MHz\n# CPU Physical cores:16\n# CPU Logical cores :16\n# Host memory       :67305 MB\n# Swap memory       :1073 MB\n# Total Virtual     :68379 MB\n# Available Virtual :53600 MB\n#-----------------------------------------------------------\nsource xsim.dir/tb_top_sim/xsim_script.tcl\n# xsim {tb_top_sim} -autoloadwcfg -runall\nTime resolution is 1 ps\nrun -all\nReading input matrix from reference_inputs.txt\nInput matrix loaded successfully\nStarting computation...\nComputation completed in 184060 cycles\nIterations: 2000\nWriting eigenvalues to sim/sim_diag_out.txt\nTest completed successfully\nResults written to sim/sim_diag_out.txt and sim/sim_meta.txt\n$finish called at time : 1840815 ns : File \"/workspace/tb/tb_top.v\" Line 144\nexit\nINFO: xsimkernel Simulation Memory Usage: 1294924 KB (Peak: 1347692 KB), Simulation CPU Usage: 180 ms\nINFO: [Common 17-206] Exiting xsim at Thu May 14 19:53:50 2026..."
+}
