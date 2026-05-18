@@ -1,2 +1,0 @@
-iter_count 2000
-cycles 184060

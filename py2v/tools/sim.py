@@ -1,19 +1,15 @@
-"""run_sim tool: compile + run xsim, diff against reference, return summary."""
+"""run_sim tool: run HLS C-sim and diff against reference."""
 
 from __future__ import annotations
 
 import json
-import re
-import shutil
-import subprocess
+import os
 from pathlib import Path
 from typing import Any
 
-from ..cache import file_sha256, read_json, stable_hash, vivado_cache_dir, write_json
 from .. import vivado as vivado_backend
 
-
-XSIM_LOG_TAIL_LINES = 60
+MAX_LOG_TAIL_LINES = 60
 MAX_MISMATCH_REPORT = 8
 
 
@@ -23,33 +19,21 @@ def build_run_sim_tool(ctx):
     schema = {
         "name": "run_sim",
         "description": (
-            "Compile RTL+TB with xvlog/xelab and run xsim. The TB is expected to "
-            "write `sim_diag_out.txt` (one `<re> <im>` integer pair per line) and "
-            "may write `sim_meta.txt` with `iter_count <N>` and `cycles <N>`. "
-            "The handler diffs `sim_diag_out.txt` against the Python reference "
-            "diagonal (`reference_eigenvalues.txt`) at integer-LSB tolerance and "
-            "returns a small JSON summary. Pass `tolerance_lsb` to relax."
+            "Run Vitis HLS C simulation from build/hls. Expects hls/tb.cpp "
+            "to write sim/sim_diag_out.txt and sim/sim_meta.txt. Diffs against "
+            "reference_eigenvalues.txt."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "top": {
                     "type": "string",
-                    "description": "TB top module name (default: tb_top)",
-                },
-                "sources": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "RTL source files relative to the buildspace (default: all rtl/*.v)",
-                },
-                "tb": {
-                    "type": "string",
-                    "description": "Testbench file relative to buildspace (default: tb/tb_top.v)",
+                    "description": "Top HLS function name (default: kernel_top)",
                 },
                 "tolerance_lsb": {
                     "type": "integer",
                     "description": "Per-element absolute tolerance in LSBs (default: 1)",
-                },
+                }
             },
             "required": [],
         },
@@ -63,86 +47,66 @@ def build_run_sim_tool(ctx):
 
 def _run_sim(ctx, args: dict) -> dict:
     build = ctx.build_dir
-    top = args.get("top") or "tb_top"
-    tb = build / (args.get("tb") or "tb/tb_top.v")
-    src_args = args.get("sources")
-    if src_args:
-        sources = [build / s for s in src_args]
-    else:
-        sources = sorted((build / "rtl").glob("*.v"))
+    hls_dir = build / "hls"
+    kernel = hls_dir / "kernel.cpp"
+    tb = hls_dir / "tb.cpp"
+    top = args.get("top") or "kernel_top"
     tolerance = int(args.get("tolerance_lsb", 1))
 
+    if not kernel.exists():
+        return {"pass": False, "error": "hls/kernel.cpp not found"}
     if not tb.exists():
-        return {"pass": False, "error": f"tb not found: {tb.relative_to(build)}"}
-    if not sources:
-        return {"pass": False, "error": "no rtl sources found under rtl/"}
+        return {"pass": False, "error": "hls/tb.cpp not found"}
 
     sim_dir = build / "sim"
     sim_dir.mkdir(parents=True, exist_ok=True)
-    # Some TBs write to "sim/<file>" while already running under build/sim.
-    # Pre-create this nested directory so writes don't fail.
     (sim_dir / "sim").mkdir(parents=True, exist_ok=True)
-    log_path = sim_dir / "xsim.log"
+    log_path = sim_dir / "csim.log"
     diag_out = sim_dir / "sim_diag_out.txt"
     meta_out = sim_dir / "sim_meta.txt"
-    for stale in (log_path, diag_out, meta_out):
+    alt_diag = sim_dir / "sim" / "sim_diag_out.txt"
+    alt_meta = sim_dir / "sim" / "sim_meta.txt"
+    for stale in (log_path, diag_out, meta_out, alt_diag, alt_meta):
         if stale.exists():
             stale.unlink()
 
-    # Testbenches typically run from build/sim and read ../reference_inputs.txt.
-    # Mirror the project-level reference vectors into build/ so this path works.
+    # Keep input path stable for tb.cpp usage.
     project_inputs = ctx.project_dir / "reference_inputs.txt"
     if project_inputs.exists():
-        shutil.copy2(project_inputs, build / "reference_inputs.txt")
+        (build / "reference_inputs.txt").write_text(project_inputs.read_text())
 
-    rel_sources = [str(s.relative_to(build)) for s in sources]
-    rel_tb = str(tb.relative_to(build))
-
-    script = _build_xsim_script(top, rel_sources, rel_tb)
-    script_path = sim_dir / "run_xsim.sh"
-    script_path.write_text(script)
-    script_path.chmod(0o755)
-    cache_key = _sim_cache_key(
+    script = _emit_csim_tcl(
+        build=build,
         top=top,
-        tolerance=tolerance,
-        tb=tb,
-        sources=sources,
-        project_dir=ctx.project_dir,
+        part=ctx.hw_yaml["part"],
+        period_ns=float(1000.0 / float(ctx.hw_yaml.get("default_clock_mhz", 100))),
     )
-    cached = _restore_sim_cache(cache_key, sim_dir)
-    if cached is not None:
-        cached["cache_hit"] = True
-        return cached
-
+    hls_bin = os.environ.get("VITIS_HLS_BIN", "vitis_hls")
     try:
         proc = vivado_backend.run_exec(
-            ["bash", "sim/run_xsim.sh"],
+            [hls_bin, "-f", str(script.relative_to(build))],
             cwd=build,
             check=False,
         )
     except Exception as exc:
-        return {"pass": False, "error": f"vivado backend failed: {exc}"}
+        return {
+            "pass": False,
+            "stage": "compile_or_elab",
+            "error": f"hls csim launch failed: {exc}",
+        }
+    log_text = _find_and_capture_csim_log(build, log_path, top)
+    log_tail = "\n".join(log_text.splitlines()[-MAX_LOG_TAIL_LINES:])
 
-    raw_log = ""
-    if log_path.exists():
-        raw_log = log_path.read_text(errors="replace")
-    log_tail = "\n".join(raw_log.splitlines()[-XSIM_LOG_TAIL_LINES:])
-
-    # Some generated TBs write under sim/sim_diag_out.txt while already
-    # running from build/sim (so the actual path becomes build/sim/sim/...).
-    # Normalize these back to the canonical build/sim paths.
-    alt_diag = sim_dir / "sim" / "sim_diag_out.txt"
-    alt_meta = sim_dir / "sim" / "sim_meta.txt"
     if not diag_out.exists() and alt_diag.exists():
-        shutil.copy2(alt_diag, diag_out)
+        diag_out.write_text(alt_diag.read_text())
     if not meta_out.exists() and alt_meta.exists():
-        shutil.copy2(alt_meta, meta_out)
+        meta_out.write_text(alt_meta.read_text())
 
     if proc.returncode != 0 and not diag_out.exists():
         return {
             "pass": False,
-            "stage": "compile_or_elab",
-            "error": "xsim returned nonzero and no diag output produced",
+            "stage": "runtime",
+            "error": "csim returned nonzero and no diag output produced",
             "log_tail": log_tail,
         }
 
@@ -150,7 +114,7 @@ def _run_sim(ctx, args: dict) -> dict:
         return {
             "pass": False,
             "stage": "runtime",
-            "error": f"TB did not write {diag_out.name}",
+            "error": "tb.cpp did not write sim_diag_out.txt",
             "log_tail": log_tail,
         }
 
@@ -166,10 +130,6 @@ def _run_sim(ctx, args: dict) -> dict:
     cmp = _diff_diagonals(diag_out, ref_diag, tolerance)
     meta = _read_meta(meta_out)
 
-    cycles = _scrape_cycles(raw_log)
-    if meta.get("cycles") is not None:
-        cycles = meta["cycles"]
-
     summary = {
         "pass": cmp["pass"],
         "cache_hit": False,
@@ -179,32 +139,44 @@ def _run_sim(ctx, args: dict) -> dict:
         "max_abs_err_lsb": cmp["max_abs_err"],
         "first_mismatches": cmp["mismatches"][:MAX_MISMATCH_REPORT],
         "iter_count": meta.get("iter_count"),
-        "cycles": cycles,
+        "cycles": meta.get("cycles"),
         "log_tail": log_tail if not cmp["pass"] else log_tail[-1500:],
     }
     (sim_dir / "sim_summary.json").write_text(json.dumps(summary, indent=2))
-    if summary["pass"]:
-        _save_sim_cache(cache_key, sim_dir, summary)
     return summary
 
 
-def _build_xsim_script(top: str, sources: list[str], tb: str) -> str:
-    """Bash script invoked inside the vivado backend (docker / flatpak / native).
-
-    Output goes to `sim/xsim.log` (relative to cwd, which is the buildspace).
-    """
-    src_quoted = " ".join(f'"{s}"' for s in sources)
-    return (
-        "#!/usr/bin/env bash\n"
-        "set -o pipefail\n"
-        "mkdir -p sim\n"
-        "cd sim\n"
-        "{\n"
-        f"  xvlog -sv ../{tb} {' '.join('../' + s for s in sources)} \\\n"
-        "    && xelab " + top + " -s " + top + "_sim -debug typical \\\n"
-        "    && xsim " + top + "_sim -runall ;\n"
-        "} 2>&1 | tee xsim.log\n"
+def _emit_csim_tcl(*, build: Path, top: str, part: str, period_ns: float) -> Path:
+    tcl = (
+        "open_project hls_csim_prj\n"
+        f"set_top {top}\n"
+        "add_files hls/kernel.cpp\n"
+        "add_files -tb hls/tb.cpp\n"
+        "open_solution -reset csim\n"
+        f"set_part {{{part}}}\n"
+        f"create_clock -period {period_ns:.3f} -name default\n"
+        "csim_design\n"
+        "exit\n"
     )
+    script = build / "run_csim.tcl"
+    script.write_text(tcl)
+    return script
+
+
+def _find_and_capture_csim_log(build: Path, log_path: Path, top: str) -> str:
+    candidates = [
+        build / "hls_csim_prj" / "csim" / "report" / f"{top}_csim.log",
+        build / "hls_csim_prj" / "vitis_hls.log",
+        build / "vitis_hls.log",
+    ]
+    for c in candidates:
+        if c.exists():
+            txt = c.read_text(errors="replace")
+            log_path.write_text(txt)
+            return txt
+    if log_path.exists():
+        return log_path.read_text(errors="replace")
+    return ""
 
 
 def _diff_diagonals(sim_path: Path, ref_path: Path, tol: int) -> dict:
@@ -278,76 +250,3 @@ def _read_meta(meta_path: Path) -> dict:
         except ValueError:
             out[parts[0]] = parts[1]
     return out
-
-
-_CYCLES_RE = re.compile(r"\bcycles\s*=\s*(\d+)\b", re.IGNORECASE)
-
-
-def _scrape_cycles(log: str) -> int | None:
-    for line in reversed(log.splitlines()):
-        m = _CYCLES_RE.search(line)
-        if m:
-            return int(m.group(1))
-    return None
-
-
-def _sim_cache_key(
-    *,
-    top: str,
-    tolerance: int,
-    tb: Path,
-    sources: list[Path],
-    project_dir: Path,
-) -> str:
-    ref_inputs = project_dir / "reference_inputs.txt"
-    ref_diag = project_dir / "reference_eigenvalues.txt"
-    payload = {
-        "schema": "sim-cache-v1",
-        "top": top,
-        "tolerance_lsb": tolerance,
-        "tb_hash": file_sha256(tb),
-        "rtl_hashes": {str(p): file_sha256(p) for p in sorted(sources, key=str)},
-        "reference_inputs_hash": file_sha256(ref_inputs) if ref_inputs.exists() else None,
-        "reference_diag_hash": file_sha256(ref_diag) if ref_diag.exists() else None,
-        "backend_identity": vivado_backend.backend_identity(),
-        "tool_version_stamp": "sim-cache-v1",
-    }
-    return stable_hash(payload, namespace="vivado-sim-v1")
-
-
-def _sim_cache_dir(cache_key: str) -> Path:
-    return vivado_cache_dir() / "sim" / cache_key
-
-
-def _restore_sim_cache(cache_key: str, sim_dir: Path) -> dict | None:
-    cache_dir = _sim_cache_dir(cache_key)
-    metadata = read_json(cache_dir / "meta.json")
-    summary = read_json(cache_dir / "sim_summary.json")
-    if not metadata or not summary:
-        return None
-    if not metadata.get("pass", False):
-        return None
-    for filename in ("xsim.log", "sim_diag_out.txt", "sim_meta.txt", "sim_summary.json"):
-        src = cache_dir / filename
-        if src.exists():
-            shutil.copy2(src, sim_dir / filename)
-    print(f"[py2v-cache] run_sim cache hit: {cache_dir}")
-    return summary
-
-
-def _save_sim_cache(cache_key: str, sim_dir: Path, summary: dict[str, Any]) -> None:
-    cache_dir = _sim_cache_dir(cache_key)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    for filename in ("xsim.log", "sim_diag_out.txt", "sim_meta.txt", "sim_summary.json"):
-        src = sim_dir / filename
-        if src.exists():
-            shutil.copy2(src, cache_dir / filename)
-    write_json(
-        cache_dir / "meta.json",
-        {
-            "schema": "sim-cache-v1",
-            "pass": bool(summary.get("pass")),
-            "cache_key": cache_key,
-        },
-    )
-    print(f"[py2v-cache] run_sim cache saved: {cache_dir}")

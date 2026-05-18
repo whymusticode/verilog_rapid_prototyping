@@ -1,7 +1,7 @@
 {
   "phase": "correctness",
   "stop_reason": "stuck",
-  "stop_detail": "sig=sim_pass=None|sim_n_mis=None|sim_max_err=None|pnr_wns=None|pnr_cycles=None",
+  "stop_detail": "sig=sim_pass=None|sim_n_mis=None|sim_max_err=None|pnr_fmax=None|pnr_cycles=None",
   "rounds": 4,
   "success": false,
   "best_effort": true,
@@ -22,5 +22,5 @@
     "best_wns_ns": null
   },
   "transcript": "/Users/mbenton/Desktop/verilog_rapid_prototyping/projects/eig_10/build/transcript_iterate_correctness.jsonl",
-  "estimated_cost_usd": 0.7098
+  "estimated_cost_usd": 2.0443
 }

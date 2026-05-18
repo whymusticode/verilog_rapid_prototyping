@@ -6,12 +6,12 @@ at integer-LSB tolerance. Keep changes focused and practical.
 Use a plan-driven loop:
 - Keep one current hypothesis about the dominant error source.
 - Gather only the report snippets needed to validate or reject that hypothesis.
-- Apply minimal edits in `rtl/` and `tb/`.
+- Apply minimal edits in `hls/`.
 - Re-run `run_sim` to measure impact.
 
 Important constraints:
 - Do not modify `reference.py` or overwrite reference expectations.
-- You may refactor RTL and testbench structure as needed.
+- You may refactor HLS kernel and C testbench structure as needed.
 - If evidence suggests scaling mismatch (uniform clipping or pervasive
   edge-of-range behavior), you may request `run_python_ref` to regenerate
   fresh reference vectors consistent with project fixed-point settings.

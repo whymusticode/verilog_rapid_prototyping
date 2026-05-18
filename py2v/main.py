@@ -3,9 +3,9 @@
 
 Subcommands:
   extract <project>            PDF -> reference.py + py2c.yaml + reference_bugs.md
-  rtl     <project>            First-draft RTL + TB generation
-  sim     <project>            Run xsim against the Python reference
-  pnr     <project>            Run vivado synth (+impl)
+  rtl     <project>            First-draft HLS C++ generation
+  sim     <project>            Run HLS C-sim against Python reference
+  pnr     <project>            Run HLS csynth estimate
   iterate <project>            Iterative loop (correctness | speed)
   hw      list | show <name>   Inspect hardware presets
 """
@@ -57,7 +57,6 @@ def cmd_sim(args: argparse.Namespace) -> None:
     tool = build_run_sim_tool(ctx)
     result = tool.handler(
         {
-            "top": args.top,
             "tolerance_lsb": args.tolerance_lsb,
         }
     )
@@ -156,23 +155,22 @@ def build_parser() -> argparse.ArgumentParser:
     ex.add_argument("--spec", type=str, default=None, help="explicit PDF path")
     ex.set_defaults(func=cmd_extract)
 
-    rtl = sub.add_parser("rtl", help="generate first-draft RTL + TB")
+    rtl = sub.add_parser("rtl", help="generate first-draft HLS C++ + tb")
     rtl.add_argument("project", type=str)
     rtl.add_argument("--max-rounds", type=int, default=30)
     rtl.add_argument("--budget-usd", type=float, default=4.0)
     rtl.set_defaults(func=cmd_rtl)
 
-    sim = sub.add_parser("sim", help="run xsim against the Python reference")
+    sim = sub.add_parser("sim", help="run HLS C-sim against the Python reference")
     sim.add_argument("project", type=str)
-    sim.add_argument("--top", type=str, default="tb_top")
     sim.add_argument("--tolerance-lsb", type=int, default=1)
     sim.set_defaults(func=cmd_sim)
 
-    pnr = sub.add_parser("pnr", help="run vivado synth or synth+impl")
+    pnr = sub.add_parser("pnr", help="run HLS csynth timing/resource estimate")
     pnr.add_argument("project", type=str)
     pnr.add_argument("--phase", choices=["synth", "impl"], default="synth")
     pnr.add_argument("--clock-mhz", type=float, default=None)
-    pnr.add_argument("--top", type=str, default="top")
+    pnr.add_argument("--top", type=str, default="kernel_top")
     pnr.set_defaults(func=cmd_pnr)
 
     pyref = sub.add_parser("python-ref", help="run reference.py and emit reference_*.txt")

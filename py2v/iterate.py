@@ -59,7 +59,7 @@ def iterate(
             "Make `run_sim` pass against the Python reference at integer-LSB "
             "tolerance. Start by calling `run_sim` with default args. "
             "Sandbox note: str_replace tool paths must be relative to build root "
-            "(`.`, `rtl/`, `tb/`, `sim/`, `reports/`)."
+            "(`.`, `hls/`, `sim/`, `reports/`)."
         )
         transcript = proj.build_dir / "transcript_iterate_correctness.jsonl"
     elif phase == "speed":
@@ -68,9 +68,9 @@ def iterate(
         seed = (
             f"The correctness phase is complete. Reduce measured `cycles` per "
             f"decomposition to <= {target_cycles}, while keeping `run_sim` passing "
-            f"and `run_pnr.wns_ns >= 0`. Start by establishing the current baseline "
+            f"and `run_pnr` meeting target clock. Start by establishing the current baseline "
             "with `run_sim` then `run_pnr` (impl). Sandbox note: use only build-root "
-            "relative paths for editor tool calls (`.`, `rtl/`, `tb/`, `sim/`, `reports/`)."
+            "relative paths for editor tool calls (`.`, `hls/`, `sim/`, `reports/`)."
         )
         transcript = proj.build_dir / "transcript_iterate_speed.jsonl"
     else:
@@ -123,7 +123,7 @@ def _context_block(proj: Project, target_cycles: int) -> str:
         "## Project context\n",
         "### Sandbox\n"
         "Editor tool is scoped to `projects/<name>/build/`.\n"
-        "Use relative paths only: `.`, `rtl/`, `tb/`, `sim/`, `reports/`.\n",
+        "Use relative paths only: `.`, `hls/`, `sim/`, `reports/`.\n",
         f"### project.yaml\n```yaml\n{proj.project_text}\n```\n",
         f"### hw.yaml ({proj.hw_name})\n```yaml\n{proj.hw_text}\n```\n",
         f"### py2c.yaml\n```yaml\n{proj.py2c_text}\n```\n",
@@ -150,10 +150,11 @@ def _make_speed_success(target_cycles: int):
         if not (isinstance(sim, dict) and isinstance(pnr, dict)):
             return False
         cycles = sim.get("cycles")
-        wns = pnr.get("wns_ns")
+        fmax = pnr.get("fmax_mhz")
+        req_clk = pnr.get("clock_mhz")
         if not sim.get("pass"):
             return False
-        if wns is None or wns < 0:
+        if fmax is None or req_clk is None or fmax < req_clk:
             return False
         if cycles is None or cycles > target_cycles:
             return False
@@ -168,7 +169,7 @@ def _stuck_sig(results: dict) -> str:
         f"sim_pass={sim.get('pass')}|"
         f"sim_n_mis={sim.get('n_mismatched')}|"
         f"sim_max_err={sim.get('max_abs_err_lsb')}|"
-        f"pnr_wns={pnr.get('wns_ns')}|"
+        f"pnr_fmax={pnr.get('fmax_mhz')}|"
         f"pnr_cycles={sim.get('cycles')}"
     )
 

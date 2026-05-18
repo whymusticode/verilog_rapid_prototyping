@@ -1,7 +1,7 @@
-"""First-draft RTL generation.
+"""First-draft HLS C++ generation.
 
 Single agent run: model gets the prompt + project context and uses
-str_replace_editor to write rtl/* and tb/* into the buildspace.
+str_replace_editor to write hls/* into the buildspace.
 """
 
 from __future__ import annotations
@@ -28,8 +28,7 @@ def generate_rtl(project_dir: Path, *, max_rounds: int = 30, budget_usd: float =
         project_yaml=proj.project,
     )
     proj.build_dir.mkdir(parents=True, exist_ok=True)
-    (proj.build_dir / "rtl").mkdir(exist_ok=True)
-    (proj.build_dir / "tb").mkdir(exist_ok=True)
+    (proj.build_dir / "hls").mkdir(exist_ok=True)
 
     tools = build_default_toolset(ctx, model=client.model)
     system_prompt = [
@@ -38,9 +37,9 @@ def generate_rtl(project_dir: Path, *, max_rounds: int = 30, budget_usd: float =
     ]
 
     seed = (
-        "Generate the first-draft RTL for this project per the system prompt. "
-        "Use str_replace_editor to create files under rtl/ and tb/. "
-        "Sandbox note: use build-root relative paths (`.`, `rtl/`, `tb/`, `sim/`, `reports/`). "
+        "Generate the first-draft HLS C++ implementation for this project per the "
+        "system prompt. Use str_replace_editor to create files under hls/. "
+        "Sandbox note: use build-root relative paths (`.`, `hls/`, `sim/`, `reports/`). "
         "When you've written everything required, end the turn."
     )
 
@@ -59,8 +58,11 @@ def generate_rtl(project_dir: Path, *, max_rounds: int = 30, budget_usd: float =
         "rounds": run.rounds,
         "transcript": str(transcript),
         "estimated_cost_usd": round(client.usage.estimate_cost_usd(client.model), 4),
-        "rtl_files": sorted(str(p.relative_to(proj.build_dir)) for p in (proj.build_dir / "rtl").glob("*.v")),
-        "tb_files": sorted(str(p.relative_to(proj.build_dir)) for p in (proj.build_dir / "tb").glob("*.v")),
+        "hls_files": sorted(
+            str(p.relative_to(proj.build_dir))
+            for p in (proj.build_dir / "hls").glob("*")
+            if p.is_file()
+        ),
     }
 
 
@@ -69,7 +71,7 @@ def _context_block(proj) -> str:
         "## Project context\n",
         "### Sandbox\n"
         "Editor tool is scoped to `projects/<name>/build/`.\n"
-        "Use relative paths only: `.`, `rtl/`, `tb/`, `sim/`, `reports/`.\n",
+        "Use relative paths only: `.`, `hls/`, `sim/`, `reports/`.\n",
         f"### project.yaml\n```yaml\n{proj.project_text}\n```\n",
         f"### hw.yaml ({proj.hw_name})\n```yaml\n{proj.hw_text}\n```\n",
         f"### py2c.yaml\n```yaml\n{proj.py2c_text}\n```\n",

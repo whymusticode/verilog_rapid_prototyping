@@ -18,6 +18,7 @@ NATIVE_BIN = os.environ.get("VIVADO_NATIVE_BIN", "vivado")
 FLATPAK_APP = os.environ.get("VIVADO_FLATPAK_APP", "com.github.corna.Vivado")
 DOCKER_IMAGE = os.environ.get("VIVADO_DOCKER_IMAGE", "vivado:latest")
 DOCKER_BIN = os.environ.get("VIVADO_DOCKER_BIN", "/opt/Xilinx/Vivado/2024.1/bin/vivado")
+DOCKER_PLATFORM = os.environ.get("VIVADO_DOCKER_PLATFORM", "").strip()
 
 _BACKENDS = ("native", "flatpak", "docker")
 
@@ -71,14 +72,19 @@ def _build_cmd(
     if backend == "flatpak":
         return ["flatpak", "run", FLATPAK_APP, *vivado_args]
     if backend == "docker":
-        return [
+        cmd = [
             "docker", "run", "--rm",
+        ]
+        if DOCKER_PLATFORM:
+            cmd += ["--platform", DOCKER_PLATFORM]
+        cmd += [
             "-v", f"{mount_root.resolve()}:/workspace",
             "-w", "/workspace",
             DOCKER_IMAGE,
             DOCKER_BIN,
             *vivado_args,
         ]
+        return cmd
     raise ValueError(f"unknown backend: {backend}")
 
 
@@ -93,10 +99,14 @@ def _build_exec_cmd(
     if backend == "flatpak":
         return ["flatpak", "run", FLATPAK_APP, *exec_args]
     if backend == "docker":
-        return [
+        cmd = [
             "docker",
             "run",
             "--rm",
+        ]
+        if DOCKER_PLATFORM:
+            cmd += ["--platform", DOCKER_PLATFORM]
+        cmd += [
             "-v",
             f"{mount_root.resolve()}:/workspace",
             "-w",
@@ -104,6 +114,7 @@ def _build_exec_cmd(
             DOCKER_IMAGE,
             *exec_args,
         ]
+        return cmd
     raise ValueError(f"unknown backend: {backend}")
 
 
