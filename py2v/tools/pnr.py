@@ -80,13 +80,14 @@ def _run_pnr(ctx, args: dict) -> dict:
         part=ctx.hw_yaml["part"],
         period_ns=period_ns,
     )
-    hls_bin = os.environ.get(
-        "VITIS_HLS_BIN",
-        "vitis_hls",
-    )
+    hls_bin = os.environ.get("VITIS_HLS_BIN", "vitis_hls")
+    script_arg = str(script.relative_to(build))
+    hls_cmd = [hls_bin, "-f", script_arg]
+    if Path(hls_bin).name == "vitis-run":
+        hls_cmd = [hls_bin, "--mode", "hls", "--tcl", script_arg]
     try:
         proc = vivado_backend.run_exec(
-            [hls_bin, "-f", str(script.relative_to(build))],
+            hls_cmd,
             cwd=build,
             check=False,
         )

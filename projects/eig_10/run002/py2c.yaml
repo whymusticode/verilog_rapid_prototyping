@@ -1,0 +1,85 @@
+module_name: jacobi_eigen
+description: "Eigenvalue decomposition for 10x10 complex Hermitian matrix using Jacobi or alternative method"
+part: xczu7ev-ffvc1156-2-e
+clock:
+  name: clk
+  freq_hz: 200000000
+reset:
+  name: rst
+  active_level: high
+  sync: true
+parameters:
+  - name: N
+    value: 10
+    description: "Matrix dimension (10x10 Hermitian matrix)"
+  - name: MAX_ITER
+    value: 2000
+    description: "Maximum Jacobi iterations"
+  - name: CONV_THRESH
+    value: "1e-8"
+    description: "Convergence threshold for off-diagonal elements"
+inputs:
+  - name: matrix_real
+    width: 3200
+    signed: true
+    description: "Input Hermitian matrix real parts, 10x10 complex, 32-bit per element (100 elements, upper triangular + diagonal due to Hermitian symmetry)"
+  - name: matrix_imag
+    width: 3200
+    signed: true
+    description: "Input Hermitian matrix imaginary parts, 10x10 complex, 32-bit per element"
+  - name: start
+    width: 1
+    signed: false
+    description: "Start signal to begin eigenvalue decomposition"
+  - name: data_format
+    width: 1
+    signed: false
+    description: "0=46-bit signed integer complex, 1=32-bit float complex"
+outputs:
+  - name: eigenvalues_real
+    width: 320
+    signed: true
+    description: "10 real eigenvalues, 32-bit each (Hermitian matrix has real eigenvalues)"
+  - name: eigenvectors_real
+    width: 3200
+    signed: true
+    description: "Eigenvector matrix real parts, 10x10, 32-bit per element"
+  - name: eigenvectors_imag
+    width: 3200
+    signed: true
+    description: "Eigenvector matrix imaginary parts, 10x10, 32-bit per element"
+  - name: done
+    width: 1
+    signed: false
+    description: "Computation complete flag"
+  - name: iterations
+    width: 16
+    signed: false
+    description: "Number of iterations performed"
+fixed_point:
+  total_bits: 46
+  frac_bits: 28
+pipeline_stages: 200
+notes:
+  - "Target device: Xilinx Zynq UltraScale+ ZU7 (xczu7ev-ffvc1156-2-e)"
+  - "Throughput requirement: 1 matrix decomposition per 1 microsecond (100-200 clock cycles at 100-200 MHz)"
+  - "Clock frequency set to 200 MHz to provide 200 cycles per matrix"
+  - "Data format options: 46-bit signed integer (complex) or 32-bit float (complex)"
+  - "Algorithm may be substituted: Jacobi reference provided but Householder tridiagonalization or other methods acceptable"
+  - "Key operations required: max search, division, sqrt, arctan, angle extraction, sin/cos, complex exp, matrix multiply"
+  - "Hardware challenges: data-dependent iteration count, global matrix updates, complex transcendental functions"
+  - "Alternative approach suggested: Householder transformation to tridiagonal form (fixed iteration count, simpler operations)"
+  - "Resource constraints: Full precision may exceed ZU7 resources; reduced precision with accuracy analysis acceptable"
+  - "Trade-off analysis required: precision vs resources vs throughput"
+  - "Fixed-point configuration assumes 46-bit signed integer input per spec; 28 fractional bits allocated for intermediate precision"
+  - "Pipeline stages estimated at 200 to meet throughput target; actual staging depends on algorithm choice"
+  - "Complex number representation: separate real/imaginary paths assumed"
+  - "Hermitian matrix property: A = A^H, implies real diagonal and conjugate-symmetric off-diagonal"
+  - "Input matrix can exploit symmetry: only n(n+1)/2 = 55 unique complex values needed"
+  - "Eigenvalues of Hermitian matrix are guaranteed real"
+  - "Eigenvectors may be complex"
+  - "Convergence threshold 1e-8 may need adjustment for fixed-point implementation"
+  - "NumPy operations to be replaced: eye, arctan, angle, exp, sin, cos, conj, transpose, matrix multiply, diag"
+  - "Resource utilization analysis required for DSPs, BRAM, LUTs"
+  - "defaulted: reset.active_level (document did not specify)"
+  - "defaulted: reset.sync (document did not specify)"
