@@ -19,7 +19,10 @@ import anthropic
 
 from .cache import advisory_lock, llm_cache_dir, read_json, stable_hash, write_json
 
-DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+# claude-opus-4-8 claude-sonnet-4-6 claude-haiku-4-5
+# 
+# 
+DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
 DEFAULT_MAX_TOKENS = int(os.environ.get("ANTHROPIC_MAX_TOKENS", "8192"))
 DEFAULT_MONITOR_LOG = os.environ.get("PY2V_MONITOR_LOG", "monitor.log")
 DEFAULT_LLM_CACHE_ENABLED = os.environ.get("PY2V_LLM_CACHE", "1").strip() != "0"

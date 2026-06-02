@@ -51,8 +51,8 @@ __pycache__/
 # === Java (Vivado crash logs) ===
 hs_err_pid*.log
 
-
-.env
+# put secrets in .env, it is gitignored. 
+.env 
 # notes.sh
 user_prompt_history.md 
 py2v/docker/.build-context/
