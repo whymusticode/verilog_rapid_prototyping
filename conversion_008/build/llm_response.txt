@@ -1,0 +1,399 @@
+=== FILE: hls/kernel.h ===
+#ifndef KERNEL_H
+#define KERNEL_H
+
+#include <ap_fixed.h>
+#include <ap_int.h>
+#include <hls_math.h>
+
+// Fixed-point type: 46 total bits, 28 fractional bits
+typedef ap_fixed<46, 18> fixed_t;
+
+// Complex fixed-point pair
+struct complex_t {
+    fixed_t re;
+    fixed_t im;
+};
+
+static const int N = 10;
+
+// Outputs:
+//   iters   : number of iterations performed (scalar int)
+//   eigvals : diagonal of A after convergence (complex[N])
+//   V       : eigenvector matrix (complex[N][N])
+void kernel_top(
+    const complex_t A_in[N][N],
+    int             max_iter,
+    int            &iters_out,
+    complex_t       eigvals_out[N],
+    complex_t       V_out[N][N]
+);
+
+#endif // KERNEL_H
+
+=== FILE: hls/kernel.cpp ===
+#include "kernel.h"
+#include <hls_math.h>
+
+// ---------------------------------------------------------------------------
+// Internal helpers (all in fixed-point / double for trig)
+// ---------------------------------------------------------------------------
+
+static void mat_mul(const complex_t A[N][N],
+                    const complex_t B[N][N],
+                    complex_t       C[N][N])
+{
+MAT_MUL_I:
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+            fixed_t re_acc = 0, im_acc = 0;
+            for (int k = 0; k < N; k++) {
+                re_acc += A[i][k].re * B[k][j].re - A[i][k].im * B[k][j].im;
+                im_acc += A[i][k].re * B[k][j].im + A[i][k].im * B[k][j].re;
+            }
+            C[i][j].re = re_acc;
+            C[i][j].im = im_acc;
+        }
+    }
+}
+
+// C = A_conj_T @ B  (i.e. C[i][j] = sum_k conj(A[k][i]) * B[k][j])
+static void mat_conj_T_mul(const complex_t A[N][N],
+                           const complex_t B[N][N],
+                           complex_t       C[N][N])
+{
+MCTM_I:
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+            fixed_t re_acc = 0, im_acc = 0;
+            for (int k = 0; k < N; k++) {
+                // conj(A[k][i]) = (A[k][i].re, -A[k][i].im)
+                re_acc += A[k][i].re * B[k][j].re + A[k][i].im * B[k][j].im;
+                im_acc += A[k][i].re * B[k][j].im - A[k][i].im * B[k][j].re;
+            }
+            C[i][j].re = re_acc;
+            C[i][j].im = im_acc;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Top-level kernel
+// ---------------------------------------------------------------------------
+void kernel_top(
+    const complex_t A_in[N][N],
+    int             max_iter,
+    int            &iters_out,
+    complex_t       eigvals_out[N],
+    complex_t       V_out[N][N]
+)
+{
+#pragma HLS INTERFACE ap_none port=iters_out
+#pragma HLS INTERFACE ap_none port=max_iter
+#pragma HLS ARRAY_PARTITION variable=A_in   complete dim=0
+#pragma HLS ARRAY_PARTITION variable=V_out  complete dim=0
+#pragma HLS ARRAY_PARTITION variable=eigvals_out complete dim=1
+
+    // Working copies
+    complex_t A[N][N];
+    complex_t V[N][N];
+
+INIT_A:
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+            A[i][j] = A_in[i][j];
+            V[i][j].re = (i == j) ? (fixed_t)1 : (fixed_t)0;
+            V[i][j].im = 0;
+        }
+    }
+
+    int z = 0;
+
+JACOBI_ITER:
+    for (int iter = 0; iter < 2000; iter++) {
+#pragma HLS LOOP_TRIPCOUNT min=0 max=2000
+
+        // ----- find max off-diagonal element -----
+        fixed_t off_diag_max = 0;
+        int p = 0, q = 1;
+
+    FIND_MAX_I:
+        for (int i = 0; i < N; i++) {
+            for (int j = i + 1; j < N; j++) {
+#pragma HLS PIPELINE II=1
+                fixed_t re = A[i][j].re;
+                fixed_t im = A[i][j].im;
+                fixed_t abs2;
+                // |a| ~ sqrt(re^2+im^2); compare squared to avoid sqrt
+                abs2 = re * re + im * im;
+                fixed_t cur_max_sq = off_diag_max * off_diag_max;
+                if (abs2 > cur_max_sq) {
+                    off_diag_max = hls::sqrt((double)abs2);
+                    p = i;
+                    q = j;
+                }
+            }
+        }
+
+        if (off_diag_max < (fixed_t)1e-8) {
+            break;
+        }
+
+        z = iter;
+
+        // ----- compute rotation parameters -----
+        double a_pp_re = (double)A[p][p].re;
+        double a_qq_re = (double)A[q][q].re;
+        double a_pq_re = (double)A[p][q].re;
+        double a_pq_im = (double)A[p][q].im;
+
+        double abs_a_pq = hls::sqrt(a_pq_re * a_pq_re + a_pq_im * a_pq_im);
+        double denom    = a_pp_re - a_qq_re;
+        double theta, phi;
+
+        // theta = 0.5 * arctan(2*|a_pq| / (a_pp - a_qq))
+        if (denom == 0.0)
+            theta = 3.14159265358979323846 / 4.0;
+        else
+            theta = 0.5 * hls::atan(2.0 * abs_a_pq / denom);
+
+        // phi = -angle(a_pq)
+        phi = -hls::atan2(a_pq_im, a_pq_re);
+
+        double cos_t  = hls::cos(theta);
+        double sin_t  = hls::sin(theta);
+        double cos_p  = hls::cos(phi);
+        double sin_p  = hls::sin(phi);
+
+        // U[p,q] = sin(theta)*exp(-j*phi) = sin_t*(cos_p - j*sin_p)
+        // U[q,p] = sin(theta)*exp(+j*phi) = sin_t*(cos_p + j*sin_p)
+        // U[p,p] =  cos(theta),  U[q,q] = -cos(theta)
+
+        fixed_t U_pp_re = (fixed_t)cos_t;
+        fixed_t U_qq_re = (fixed_t)(-cos_t);
+        fixed_t U_pq_re = (fixed_t)(sin_t * cos_p);
+        fixed_t U_pq_im = (fixed_t)(-sin_t * sin_p);
+        fixed_t U_qp_re = (fixed_t)(sin_t * cos_p);
+        fixed_t U_qp_im = (fixed_t)(sin_t * sin_p);
+
+        // Build dense U matrix
+        complex_t U[N][N];
+    BUILD_U:
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+                U[i][j].re = (i == j) ? (fixed_t)1 : (fixed_t)0;
+                U[i][j].im = 0;
+            }
+        }
+        U[p][p].re =  U_pp_re; U[p][p].im = 0;
+        U[q][q].re =  U_qq_re; U[q][q].im = 0;
+        U[p][q].re =  U_pq_re; U[p][q].im = U_pq_im;
+        U[q][p].re =  U_qp_re; U[q][p].im = U_qp_im;
+
+        // A = U^H @ A @ U
+        complex_t tmp[N][N];
+        mat_conj_T_mul(U, A, tmp);   // tmp  = U^H @ A
+        complex_t A_new[N][N];
+        mat_mul(tmp, U, A_new);       // A_new = tmp @ U
+
+        // zero out p,q and q,p exactly
+        A_new[p][q].re = 0; A_new[p][q].im = 0;
+        A_new[q][p].re = 0; A_new[q][p].im = 0;
+
+    COPY_A:
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+                A[i][j] = A_new[i][j];
+            }
+        }
+
+        // V = V @ U
+        complex_t V_new[N][N];
+        mat_mul(V, U, V_new);
+    COPY_V:
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+                V[i][j] = V_new[i][j];
+            }
+        }
+
+        if (iter < max_iter - 1) {
+            // continue
+        } else {
+            z = iter;
+            break;
+        }
+    }
+
+    iters_out = z;
+
+OUT_EIG:
+    for (int i = 0; i < N; i++) {
+#pragma HLS PIPELINE II=1
+        eigvals_out[i] = A[i][i];
+    }
+
+OUT_V:
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+#pragma HLS PIPELINE II=1
+            V_out[i][j] = V[i][j];
+        }
+    }
+}
+
+=== FILE: hls/tb.cpp ===
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
+#include "kernel.h"
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+static int read_scalar_int(const char *path, int *val)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) { fprintf(stderr, "Cannot open %s\n", path); return -1; }
+    fscanf(f, "%d", val);
+    fclose(f);
+    return 0;
+}
+
+// Read N complex values (interleaved real imag per line) from file.
+// Each element occupies one line: "re im"
+static int read_complex_flat(const char *path, double *re, double *im, int n)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) { fprintf(stderr, "Cannot open %s\n", path); return -1; }
+    for (int i = 0; i < n; i++) {
+        if (fscanf(f, "%lf %lf", &re[i], &im[i]) != 2) {
+            fprintf(stderr, "Parse error at element %d in %s\n", i, path);
+            fclose(f);
+            return -1;
+        }
+    }
+    fclose(f);
+    return 0;
+}
+
+static int write_scalar_int(const char *path, int val)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) { fprintf(stderr, "Cannot open %s for write\n", path); return -1; }
+    fprintf(f, "%d\n", val);
+    fclose(f);
+    return 0;
+}
+
+static int write_complex_flat(const char *path, const double *re, const double *im, int n)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) { fprintf(stderr, "Cannot open %s for write\n", path); return -1; }
+    for (int i = 0; i < n; i++) {
+        fprintf(f, "%.17g %.17g\n", re[i], im[i]);
+    }
+    fclose(f);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
+int main()
+{
+    // ---- paths ----
+    const char *io_dir    = "../eig_10_io/";
+    const char *sim_dir   = "sim/";
+
+    // ---- storage ----
+    double A_re[N][N], A_im[N][N];
+    int    max_iter_val = 2000;
+
+    // ---- read call index 0 ----
+    // in_A.txt : N*N complex elements, interleaved re im, row-major
+    {
+        char path[256];
+        snprintf(path, sizeof(path), "%sin_A.txt", io_dir);
+
+        double flat_re[N * N], flat_im[N * N];
+        if (read_complex_flat(path, flat_re, flat_im, N * N) != 0) return 1;
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < N; j++) {
+                A_re[i][j] = flat_re[i * N + j];
+                A_im[i][j] = flat_im[i * N + j];
+            }
+    }
+
+    // in_max_iter.txt : one integer per call; read first line
+    {
+        char path[256];
+        snprintf(path, sizeof(path), "%sin_max_iter.txt", io_dir);
+        FILE *f = fopen(path, "r");
+        if (!f) { fprintf(stderr, "Cannot open %s\n", path); return 1; }
+        // file may contain int64 stored as text
+        long long tmp = 2000;
+        fscanf(f, "%lld", &tmp);
+        fclose(f);
+        max_iter_val = (int)tmp;
+    }
+
+    // ---- build kernel inputs ----
+    complex_t A_kernel[N][N];
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++) {
+            A_kernel[i][j].re = (fixed_t)A_re[i][j];
+            A_kernel[i][j].im = (fixed_t)A_im[i][j];
+        }
+
+    // ---- kernel outputs ----
+    int       iters_out = 0;
+    complex_t eigvals_out[N];
+    complex_t V_out[N][N];
+
+    // ---- call kernel ----
+    kernel_top(A_kernel, max_iter_val, iters_out, eigvals_out, V_out);
+
+    // ---- write outputs ----
+    // out_0.txt : scalar int (iteration count)
+    {
+        char path[256];
+        snprintf(path, sizeof(path), "%sout_0.txt", sim_dir);
+        if (write_scalar_int(path, iters_out) != 0) return 1;
+    }
+
+    // out_1.txt : eigvals complex[N]
+    {
+        char path[256];
+        snprintf(path, sizeof(path), "%sout_1.txt", sim_dir);
+        double re[N], im[N];
+        for (int i = 0; i < N; i++) {
+            re[i] = (double)eigvals_out[i].re;
+            im[i] = (double)eigvals_out[i].im;
+        }
+        if (write_complex_flat(path, re, im, N) != 0) return 1;
+    }
+
+    // out_2.txt : V complex[N][N] row-major
+    {
+        char path[256];
+        snprintf(path, sizeof(path), "%sout_2.txt", sim_dir);
+        double re[N * N], im[N * N];
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < N; j++) {
+                re[i * N + j] = (double)V_out[i][j].re;
+                im[i * N + j] = (double)V_out[i][j].im;
+            }
+        if (write_complex_flat(path, re, im, N * N) != 0) return 1;
+    }
+
+    printf("kernel_top done. iters=%d\n", iters_out);
+    return 0;
+}

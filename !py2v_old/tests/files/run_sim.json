@@ -1,0 +1,12 @@
+{
+  "pass": true,
+  "cache_hit": false,
+  "tolerance_lsb": 1,
+  "n_compared": 10,
+  "n_mismatched": 0,
+  "max_abs_err_lsb": 0,
+  "first_mismatches": [],
+  "iter_count": 12,
+  "cycles": 48213,
+  "log_tail": "INFO: [SIM 211-1] CSim done with 0 errors."
+}

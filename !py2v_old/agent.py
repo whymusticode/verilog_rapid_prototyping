@@ -114,7 +114,7 @@ def run_agent(
     try:
         for round_idx in range(max_rounds):
             run.rounds = round_idx + 1
-            cost = client.usage.estimate_cost_usd(client.model)
+            cost = client.usage.estimate_cost_usd()
             if cost >= token_budget_usd:
                 run.stop_reason = StopReason(
                     code="token_budget",
@@ -222,7 +222,7 @@ def run_agent(
                     else None,
                     "success": run.success,
                     "usage": dataclasses.asdict(client.usage),
-                    "estimated_cost_usd": round(client.usage.estimate_cost_usd(client.model), 4),
+                    "estimated_cost_usd": round(client.usage.estimate_cost_usd(), 4),
                 }
             )
             + "\n"

@@ -1,0 +1,58 @@
+{
+  "target": "jacobi_eigen",
+  "tensors": [
+    {
+      "role": "in",
+      "name": "A",
+      "dtype": "complex128",
+      "complex": true,
+      "shape": [
+        10,
+        10
+      ],
+      "count": 10,
+      "file": "in_A.txt"
+    },
+    {
+      "role": "in",
+      "name": "max_iter",
+      "dtype": "int64",
+      "complex": false,
+      "shape": [],
+      "count": 10,
+      "file": "in_max_iter.txt"
+    },
+    {
+      "role": "out",
+      "name": "0",
+      "dtype": "int64",
+      "complex": false,
+      "shape": [],
+      "count": 10,
+      "file": "out_0.txt"
+    },
+    {
+      "role": "out",
+      "name": "1",
+      "dtype": "complex128",
+      "complex": true,
+      "shape": [
+        10
+      ],
+      "count": 10,
+      "file": "out_1.txt"
+    },
+    {
+      "role": "out",
+      "name": "2",
+      "dtype": "complex128",
+      "complex": true,
+      "shape": [
+        10,
+        10
+      ],
+      "count": 10,
+      "file": "out_2.txt"
+    }
+  ]
+}

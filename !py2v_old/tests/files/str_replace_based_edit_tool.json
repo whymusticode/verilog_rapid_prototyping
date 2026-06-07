@@ -1,0 +1,28 @@
+{
+  "view": {
+    "path": "build/eigen/hls/kernel.cpp",
+    "start": 1,
+    "end": 3,
+    "content": "    1|#include \"kernel.h\"\n    2|\n    3|void kernel_top(...) {"
+  },
+  "view_dir": {
+    "entries": [
+      "d hls",
+      "f kernel.cpp",
+      "f tb.cpp"
+    ]
+  },
+  "create": {
+    "ok": true,
+    "bytes": 1234
+  },
+  "str_replace": {
+    "ok": true
+  },
+  "insert": {
+    "ok": true
+  },
+  "undo_edit": {
+    "ok": true
+  }
+}

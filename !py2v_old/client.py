@@ -1,4 +1,9 @@
-"""Anthropic API wrapper with prompt caching, retries, and token accounting."""
+"""Anthropic API wrapper with prompt caching, retries, and token accounting.
+
+Centralizes all model interaction so the rest of the codebase never imports
+`anthropic` directly. This keeps caching policy + budget enforcement in one
+place.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +31,8 @@ LLM_CACHE_BYPASS = False
 
 @dataclass
 class TokenUsage:
+    """Cumulative usage across a session, broken out by cache class."""
+
     input_tokens: int = 0
     output_tokens: int = 0
     cache_creation_input_tokens: int = 0
@@ -58,6 +65,8 @@ class ChatResult:
 
 
 class Client:
+    """Thin wrapper around `anthropic.Anthropic` with cache + accounting."""
+
     def __init__(
         self,
         model: str = MODEL,
@@ -96,6 +105,7 @@ class Client:
         max_tokens: Optional[int] = None,
         extra_headers: Optional[dict] = None,
     ) -> ChatResult:
+        """Single non-streaming completion. Returns parsed text + tool uses."""
         kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": max_tokens or self.max_tokens,
@@ -142,16 +152,20 @@ class Client:
         )
 
     def _load_monitor_carry_over(self) -> None:
+        """Pre-seed cumulative usage from a previous monitor.log if present.
+
+        The last `json: {...}` line is the source of truth.
+        """
         if self.monitor_log_path is None or not self.monitor_log_path.exists():
             return
         try:
-            log_text = self.monitor_log_path.read_text()
+            text = self.monitor_log_path.read_text()
         except OSError:
             return
-        for line in reversed(log_text.splitlines()):
+        for line in reversed(text.splitlines()):
             if line.startswith("json: "):
                 try:
-                    payload = json.loads(line[len("json: ") :])
+                    payload = json.loads(line[len("json: "):])
                 except json.JSONDecodeError:
                     return
                 tok = payload.get("cumulative_tokens", {})
@@ -160,11 +174,14 @@ class Client:
                 self.usage.cache_creation_input_tokens = int(
                     tok.get("cache_creation_input", 0)
                 )
-                self.usage.cache_read_input_tokens = int(tok.get("cache_read_input", 0))
+                self.usage.cache_read_input_tokens = int(
+                    tok.get("cache_read_input", 0)
+                )
                 self._carry_over_calls = int(payload.get("calls", 0))
                 return
 
     def _write_monitor(self, last_usage: Any) -> None:
+        """Overwrite the monitor.log file with cumulative usage + cost."""
         if self.monitor_log_path is None:
             return
         try:
@@ -191,12 +208,10 @@ class Client:
                     "output": getattr(last_usage, "output_tokens", 0) or 0,
                     "cache_creation_input": getattr(
                         last_usage, "cache_creation_input_tokens", 0
-                    )
-                    or 0,
+                    ) or 0,
                     "cache_read_input": getattr(
                         last_usage, "cache_read_input_tokens", 0
-                    )
-                    or 0,
+                    ) or 0,
                 },
             }
             text_block = (
@@ -204,10 +219,25 @@ class Client:
                 f"model: {payload['model']}\n"
                 f"calls: {payload['calls']}\n"
                 f"cumulative_cost_usd: ${payload['cumulative_usd']:.4f}\n"
+                f"cache:\n"
+                f"  enabled:               {str(payload['cache']['enabled']).lower():>10}\n"
+                f"  hits:                  {payload['cache']['hits']:>10}\n"
+                f"  misses:                {payload['cache']['misses']:>10}\n"
+                f"cumulative_tokens:\n"
+                f"  input:                 {payload['cumulative_tokens']['input']:>10}\n"
+                f"  output:                {payload['cumulative_tokens']['output']:>10}\n"
+                f"  cache_creation_input:  {payload['cumulative_tokens']['cache_creation_input']:>10}\n"
+                f"  cache_read_input:      {payload['cumulative_tokens']['cache_read_input']:>10}\n"
+                f"last_call:\n"
+                f"  input:                 {payload['last_call']['input']:>10}\n"
+                f"  output:                {payload['last_call']['output']:>10}\n"
+                f"  cache_creation_input:  {payload['last_call']['cache_creation_input']:>10}\n"
+                f"  cache_read_input:      {payload['last_call']['cache_read_input']:>10}\n"
                 f"json: {json.dumps(payload)}\n"
             )
             self.monitor_log_path.write_text(text_block)
         except OSError:
+            # Monitoring is best-effort; never block a chat call on it.
             pass
 
     def _with_retry(self, fn, **kwargs):
@@ -251,7 +281,9 @@ class Client:
         lock_path = self._cache_dir / ".lock"
         with advisory_lock(lock_path):
             payload = read_json(path)
-        if not payload or payload.get("schema") != "llm-cache-v1":
+        if not payload:
+            return None
+        if payload.get("schema") != "llm-cache-v1":
             return None
         return payload
 
@@ -304,7 +336,7 @@ class Client:
         tool_uses: list[Any] = []
         for block in content:
             if getattr(block, "type", None) == "text":
-                text_chunks.append(block.text or "")
+                text_chunks.append(block.text)
             elif getattr(block, "type", None) == "tool_use":
                 tool_uses.append(block)
         usage_payload = resp.get("usage", {})
@@ -380,19 +412,55 @@ def _hydrate_content_block(payload: dict[str, Any]) -> _MiniContent:
     return _MiniContent(type="unknown")
 
 
-def cached(s: str) -> dict:
-    return {"type": "text", "text": s, "cache_control": {"type": "ephemeral"}}
+def cached(text: str) -> dict:
+    """Wrap a string into a text content block marked for ephemeral caching."""
+    return {
+        "type": "text",
+        "text": text,
+        "cache_control": {"type": "ephemeral"},
+    }
 
 
 def text(text_str: str) -> dict:
+    """Plain (uncached) text content block."""
     return {"type": "text", "text": text_str}
 
 
+def doc_pdf_b64(b64: str) -> dict:
+    """Document content block for an inline base64 PDF."""
+    return {
+        "type": "document",
+        "source": {
+            "type": "base64",
+            "media_type": "application/pdf",
+            "data": b64,
+        },
+    }
+
+
+def doc_text(text_str: str) -> dict:
+    """Document content block for plain text."""
+    return {
+        "type": "document",
+        "source": {
+            "type": "text",
+            "media_type": "text/plain",
+            "data": text_str,
+        },
+    }
+
+
 def strip_code_fences(s: str) -> str:
+    """Remove leading/trailing ``` fences (optionally with a lang tag)."""
     s = s.strip()
     if s.startswith("```"):
-        lines = s.splitlines()[1:]
+        lines = s.splitlines()
+        lines = lines[1:]
         if lines and lines[-1].strip().startswith("```"):
             lines = lines[:-1]
         s = "\n".join(lines).strip()
     return s
+
+
+def join_text(blocks: Iterable[Any]) -> str:
+    return "".join(b.text for b in blocks if getattr(b, "type", None) == "text")

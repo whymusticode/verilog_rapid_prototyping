@@ -57,7 +57,7 @@ def generate_rtl(project_dir: Path, *, max_rounds: int = 30, budget_usd: float =
         "stop_reason": run.stop_reason.code if run.stop_reason else None,
         "rounds": run.rounds,
         "transcript": str(transcript),
-        "estimated_cost_usd": round(client.usage.estimate_cost_usd(client.model), 4),
+        "estimated_cost_usd": round(client.usage.estimate_cost_usd(), 4),
         "hls_files": sorted(
             str(p.relative_to(proj.build_dir))
             for p in (proj.build_dir / "hls").glob("*")

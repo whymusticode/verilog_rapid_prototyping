@@ -66,13 +66,13 @@ def build_editor_tool(ctx, *, model: str | None = None):  # ctx: ToolContext
     """Returns a Tool wrapping the Anthropic built-in editor.
 
     `model` is used to pick the right tool type/name. If None, we use whatever
-    Client's DEFAULT_MODEL says.
+    Client's MODEL says.
     """
     from . import Tool
-    from ..client import DEFAULT_MODEL
+    from ..client import MODEL
 
     history: dict[str, list[str]] = defaultdict(list)
-    schema = editor_spec_for_model(model or DEFAULT_MODEL)
+    schema = editor_spec_for_model(model or MODEL)
 
     def handler(args: dict) -> Any:
         cmd = args.get("command")

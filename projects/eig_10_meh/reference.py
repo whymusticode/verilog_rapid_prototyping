@@ -52,8 +52,7 @@ acm = vect @ vect.conj().T
 ite, eigenvalues, eigenvectors = jacobi_eigen(acm.copy())
 eig_val, eig_vec = np.linalg.eig(acm)
 
-print(eigenvalues.real)
-print(eig_val.real)
+print(f"max error: {np.max(np.abs(np.sort(eigenvalues.real)-np.sort(eig_val.real)))}")
 # print()
 # show(eigenvectors)
 # print()

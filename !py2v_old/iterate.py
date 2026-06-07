@@ -110,7 +110,7 @@ def iterate(
         "scale_info": scale_info,
         "progress": progress,
         "transcript": str(transcript),
-        "estimated_cost_usd": round(client.usage.estimate_cost_usd(client.model), 4),
+        "estimated_cost_usd": round(client.usage.estimate_cost_usd(), 4),
     }
     (proj.build_dir / f"iterate_{phase}_summary.json").write_text(
         json.dumps(summary, indent=2)

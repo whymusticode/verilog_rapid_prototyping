@@ -172,7 +172,7 @@ def extract(project_dir: Path, *, spec_path: Path | None = None) -> dict:
         "reference_bugs_md": str(bugs_path),
         "py2c_yaml": str(py2c_path),
         "project_yaml": str(project_yaml_path),
-        "estimated_cost_usd": round(client.usage.estimate_cost_usd(client.model), 4),
+        "estimated_cost_usd": round(client.usage.estimate_cost_usd(), 4),
         "usage": {
             "input_tokens": client.usage.input_tokens,
             "output_tokens": client.usage.output_tokens,

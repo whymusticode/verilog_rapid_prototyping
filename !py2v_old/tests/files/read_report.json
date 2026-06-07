@@ -1,0 +1,8 @@
+{
+  "name": "sim_summary",
+  "path": "sim/sim_summary.json",
+  "total_lines": 11,
+  "returned_lines": 11,
+  "tail": false,
+  "content": "{\n  \"pass\": true,\n  \"n_compared\": 10,\n  \"n_mismatched\": 0\n}"
+}

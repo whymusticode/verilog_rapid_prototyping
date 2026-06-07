@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "n": 10,
+  "max_iter": 1,
+  "seed": 0,
+  "fixed_point": {
+    "total_bits": 23,
+    "frac_bits": 20
+  },
+  "inputs_path": "projects/eigen/reference_inputs.txt",
+  "diag_path": "projects/eigen/reference_eigenvalues.txt"
+}
