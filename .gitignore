@@ -53,6 +53,7 @@ hs_err_pid*.log
 
 # put secrets in .env, it is gitignored. 
 .env 
+conversion_*/
 # notes.sh
 user_prompt_history.md 
 py2v/docker/.build-context/
