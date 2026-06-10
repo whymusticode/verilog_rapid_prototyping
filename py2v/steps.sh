@@ -21,6 +21,7 @@ name=$(basename "$project")   # eig_10
 
 n=0; while [ -d "conversion_$(printf %03d $n)" ]; do n=$((n+1)); done
 conv="conversion_$(printf %03d $n)"; cp -r "$project" "$conv"; echo "$conv"
+# conv="conversion_009"
 
 # STEP 2: capture target fn inputs/outputs (generic, no edits to the reference) + record in params.yaml
 python py2v/capture.py "$conv/$name.py"   # -> $conv/${name}_io/ (*.txt + manifest.json)

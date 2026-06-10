@@ -94,30 +94,54 @@ for rel, body in files.items():
     p.write_text(body + ("\n" if not body.endswith("\n") else ""))
 print(f"wrote {len(files)} file(s) under {build}")
 
-part = params.get("part", "xczu7ev-ffvc1156-2-e")
+part = params["part"]
 clk_hz = float(params.get("clock", {}).get("freq_hz", 200e6))
 period_ns = 1000.0 / (clk_hz / 1e6)
-tcl = (
-    "open_project hls_csim_prj\nset_top kernel_top\n"
-    "add_files hls/kernel.cpp\nadd_files -tb hls/tb.cpp\n"
-    "open_solution -reset csim\n"
-    f"set_part {{{part}}}\n"
-    f"create_clock -period {period_ns:.3f} -name default\n"
-    "csim_design\nexit\n"
-)
-(build / "run_csim.tcl").write_text(tcl)
+
+# Vitis 2025+ dropped the standalone vitis_hls CLI; csim is driven via Python API.
+# workspace=conv so tb.cpp's "../<name>_io/" resolves to conv/<name>_io/ correctly.
+# Sim outputs land in conv/csim_prj/sim/ and are copied to build/sim/ after.
+py_script = f"""\
+import vitis, os, shutil
+conv = {str(conv)!r}
+build = {str(build)!r}
+io_name = {(name + '_io')!r}
+c = vitis.create_client()
+c.update_workspace(conv)
+c.set_workspace(conv)
+comp_dir = os.path.join(conv, 'csim_prj')
+if os.path.isdir(comp_dir):
+    shutil.rmtree(comp_dir)
+comp = c.create_hls_component(name='csim_prj')
+cfg = c.get_config_file(os.path.join(conv, 'csim_prj', 'hls_config.cfg'))
+cfg.set_value('', key='part', value={part!r})
+cfg.add_lines('hls', ['syn.file=' + os.path.join(build, 'hls', 'kernel.cpp')])
+cfg.add_lines('hls', ['tb.file=' + os.path.join(build, 'hls', 'tb.cpp')])
+cfg.add_lines('hls', ['syn.top=kernel_top'])
+cfg.add_lines('hls', ['clock={period_ns:.3f}'])
+# tb.cpp runs from csim_prj/csim_prj/ and uses "../<name>_io/" and "sim/" as relative paths.
+# Symlink both so they resolve correctly without changing tb.cpp.
+os.symlink(os.path.join(conv, io_name), os.path.join(conv, 'csim_prj', io_name))
+os.makedirs(os.path.join(build, 'sim'), exist_ok=True)
+os.makedirs(os.path.join(conv, 'csim_prj', 'csim_prj'), exist_ok=True)
+os.symlink(os.path.join(build, 'sim'), os.path.join(conv, 'csim_prj', 'csim_prj', 'sim'))
+comp.run('C_SIMULATION')
+vitis.dispose()
+"""
+(build / "run_csim.py").write_text(py_script)
 
 env = os.environ.copy()
 env.setdefault("LC_ALL", "C.UTF-8")
 env.setdefault("LANG", "C.UTF-8")
-hls_bin = env.get("VITIS_HLS_BIN", "vitis_hls")
+hls_bin = env.get("VITIS_HLS_BIN", "vitis")
 proc = subprocess.run(
-    [hls_bin, "-f", "run_csim.tcl"],
-    cwd=build,
+    [hls_bin, "-s", str(build / "run_csim.py")],
+    cwd=str(conv),
     env=env,
     capture_output=True,
     text=True,
 )
+# useful for debugging vitis interface: 
 (build / "csim.log").write_text((proc.stdout or "") + (proc.stderr or ""))
 if proc.returncode != 0:
     print(f"csim failed (rc={proc.returncode}); see build/csim.log")

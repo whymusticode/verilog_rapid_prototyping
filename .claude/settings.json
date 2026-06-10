@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(/home/mbenton/verilog_rapid_prototyping/conversion_*)",
+      "Write(/home/mbenton/verilog_rapid_prototyping/conversion_*)",
+      "Bash(python py2v/convert.py *)"
+    ]
+  }
+}
