@@ -65,8 +65,8 @@ ctx = (
     f"## params.yaml\n```yaml\n{(conv / 'params.yaml').read_text()}```\n\n"
     f"## manifest.json\n```json\n{json.dumps(manifest, indent=2)}```\n\n"
     f"## Translation target `{manifest['target']}`\n```python\n{py_target}\n```\n\n"
-    f"IO directory (relative to build/): `../{name}_io/`\n"
-    f"Sim output directory (relative to build/): `sim/`\n"
+    f"IO directory (absolute path): `{io_dir}/`\n"
+    f"Sim output directory (absolute path): `{sim}/`\n"
 )
 
 if from_response:
@@ -119,12 +119,7 @@ cfg.add_lines('hls', ['syn.file=' + os.path.join(build, 'hls', 'kernel.cpp')])
 cfg.add_lines('hls', ['tb.file=' + os.path.join(build, 'hls', 'tb.cpp')])
 cfg.add_lines('hls', ['syn.top=kernel_top'])
 cfg.add_lines('hls', ['clock={period_ns:.3f}'])
-# tb.cpp runs from csim_prj/csim_prj/ and uses "../<name>_io/" and "sim/" as relative paths.
-# Symlink both so they resolve correctly without changing tb.cpp.
-os.symlink(os.path.join(conv, io_name), os.path.join(conv, 'csim_prj', io_name))
 os.makedirs(os.path.join(build, 'sim'), exist_ok=True)
-os.makedirs(os.path.join(conv, 'csim_prj', 'csim_prj'), exist_ok=True)
-os.symlink(os.path.join(build, 'sim'), os.path.join(conv, 'csim_prj', 'csim_prj', 'sim'))
 comp.run('C_SIMULATION')
 vitis.dispose()
 """

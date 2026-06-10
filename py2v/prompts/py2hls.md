@@ -22,10 +22,12 @@ No markdown fences. No commentary outside the file blocks.
   from `params.yaml` `fixed_point.total_bits` and `fixed_point.frac_bits`.
 - `tb.cpp` C-simulation testbench must:
   - Run **call index 0 only** (first captured vector).
-  - Read inputs from flat text files under `../<name>_io/` (paths listed in manifest).
+  - Read inputs from flat text files under the IO directory provided in the context
+    (use that exact path string as a C string literal — do not compute it at runtime).
     Each line is one scalar; complex tensors use interleaved `real imag` per element.
   - Invoke `kernel_top` with those inputs.
-  - Write each output tensor to `sim/<manifest file>` (same basename as reference capture).
+  - Write each output tensor to the sim output directory provided in the context
+    (same exact path string, same basename as reference capture).
     Same flat format as inputs.
 - Kernel: C++17, HLS-friendly (no `malloc`, no iostream in `kernel.cpp`).
 - Minimal pragmas on `kernel_top` and one inner loop.

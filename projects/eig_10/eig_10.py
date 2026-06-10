@@ -31,30 +31,32 @@ def jacobi_eigen(A, max_iter=2000):
         A[p, q], A[q, p] = 0, 0
         V = V @ U
     
-    return z, np.diag(A), V
+    return np.diag(A), V, z
 # Translation Target End
-
-def show(A, tol=1e-10):
-    B = A.copy()
-    B.real[abs(B.real) < tol] = 0
-    B.imag[abs(B.imag) < tol] = 0
-    np.set_printoptions(precision=2, suppress=True)
-    print(B)
-    print()
 
 if __name__ == "__main__":
     np.random.seed(0)
 
-    N = 10
-    BW = 14
+    N_size = 10
+    N_samples = 100
+    max_iter=2000
+    BW = 14 # idk what this was for 
     for i in range(10):
-        vect = np.random.randint(-2**BW, 2**BW, (N, 100)) + \
-            np.random.randint(-2**BW, 2**BW, (N, 100)) * 1J
+        vect = np.random.randint(-2**BW, 2**BW, (N_size, N_samples)) + \
+            np.random.randint(-2**BW, 2**BW, (N_size, N_samples)) * 1J
 
         acm = vect @ vect.conj().T
-        ite, eigenvalues, eigenvectors = jacobi_eigen(acm.copy())
-
-
+        # /2**14 # keep it well within 22 integer bits 
+        eigenvalues, eigenvectors, ite = jacobi_eigen(acm.copy(),max_iter)
+# np.random.seed(0)
+# N = 10
+# BW = 14
+# vect = np.random.randint(-2**BW, 2**BW, (N, 100)) +  np.random.randint(-2**BW, 2**BW, (N, 100)) * 1J
+# acm = vect @ vect.conj().T
+# ite, eigenvalues, eigenvectors = jacobi_eigen(acm.copy())
+# np.log2(np.max(np.abs(acm))/2**22)
+# np.log2(np.max(np.abs(eigenvalues))/2**22)
+# np.log2(np.max(np.abs(eigenvectors))/2**22)
 
 # eig_val, eig_vec = np.linalg.eig(acm)
 # print(f"max error: {np.max(np.abs(np.sort(eigenvalues.real)-np.sort(eig_val.real)))}")
