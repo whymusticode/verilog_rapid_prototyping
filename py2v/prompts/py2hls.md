@@ -19,7 +19,11 @@ No markdown fences. No commentary outside the file blocks.
 
 - Top function name: `kernel_top` (declared in `kernel.h`, defined in `kernel.cpp`).
 - Match the Python function's inputs/outputs (names, arity, shapes) using fixed-point types
-  from `params.yaml` `fixed_point.total_bits` and `fixed_point.frac_bits`.
+  derived from `params.yaml`. For each named tensor, compute:
+  - bits per component = `bits + signed`
+  - `ap_fixed<bits_per_component, bits_per_component - fraction>` for each real/imag component
+  - total wire width = `(bits + signed) * (1 + complex)` (do NOT store this in params.yaml)
+  - Real-only tensors use one `ap_fixed`; complex tensors use two (real + imag).
 - `tb.cpp` C-simulation testbench must:
   - Run **call index 0 only** (first captured vector).
   - Read inputs from flat text files under the IO directory provided in the context
