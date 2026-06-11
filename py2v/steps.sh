@@ -12,8 +12,10 @@
 # ...<3 lines>...
 #     text=True,
 # )
-####### end dev notes 
 
+# between vscode+ssh+claude+xylinx, there're a lot of runaway files 
+# look in /tmp/ and ~/Xilinx/
+# sudo du -sh /*/  2>/dev/null | sort -h
 
 # STEP 1: find the next free conversion_NNN folder (000, 001, ...) and copy the project into it
 project=projects/eig_10
