@@ -113,6 +113,18 @@ def _next_backup_ver(build):
     return max(indices, default=-1) + 1
 
 
+def _resolve(build, path_str):
+    """Resolve a tool PATH relative to build/, stripping a leading 'build/' if present."""
+    p = Path(path_str)
+    if p.is_absolute():
+        return p
+    # LLM often writes "build/hls/kernel.cpp" but paths are already relative to build
+    parts = p.parts
+    if parts and parts[0] == "build":
+        p = Path(*parts[1:])
+    return build / p
+
+
 def _apply_tools(conv, build, response_text, round_num):
     reads = {}
 
@@ -122,7 +134,7 @@ def _apply_tools(conv, build, response_text, round_num):
         body = (m.group(3) or "").strip()
 
         if tool == "backup_file" and path_str:
-            src = Path(path_str) if Path(path_str).is_absolute() else build / path_str
+            src = _resolve(build, path_str)
             if src.exists():
                 ver = _next_backup_ver(build)
                 dst = src.parent / f"{src.stem}_{ver:03d}{src.suffix}"
@@ -130,13 +142,13 @@ def _apply_tools(conv, build, response_text, round_num):
                 print(f"  backed up {src.name} → {dst.name}")
 
         elif tool == "write_file" and path_str and body:
-            dst = Path(path_str) if Path(path_str).is_absolute() else build / path_str
+            dst = _resolve(build, path_str)
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_text(body + ("\n" if not body.endswith("\n") else ""))
             print(f"  wrote {dst.relative_to(build)}")
 
         elif tool == "read_file" and path_str:
-            src = Path(path_str) if Path(path_str).is_absolute() else build / path_str
+            src = _resolve(build, path_str)
             reads[path_str] = src.read_text() if src.exists() else f"(not found: {path_str})"
             print(f"  read {src.name}")
 

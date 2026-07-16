@@ -26,12 +26,12 @@ Respond ONLY with tool calls — no prose, no markdown fences, no explanation ou
 ### backup_file — save current file before editing
 
 TOOL: backup_file
-PATH: build/hls/kernel.cpp
+PATH: hls/kernel.cpp
 
 ### write_file — overwrite a file (always backup first)
 
 TOOL: write_file
-PATH: build/hls/kernel.cpp
+PATH: hls/kernel.cpp
 <<<
 <full new file content here>
 >>>
@@ -39,7 +39,7 @@ PATH: build/hls/kernel.cpp
 ### read_file — read a file (result returned next round)
 
 TOOL: read_file
-PATH: build/hls/kernel.h
+PATH: hls/kernel.h
 
 ### write_plan — append to optimization_plan.md
 
@@ -62,7 +62,8 @@ TOOL: done
 - Do not rewrite tb.cpp unless the kernel signature changed.
 - Always `backup_file` before `write_file`.
 - One change per round so regressions are diagnosable.
-- Backups are named kernel_NNN.cpp automatically — do not add timestamps yourself.
+- All PATH values are relative to the build directory — use `hls/kernel.cpp`, not `build/hls/kernel.cpp`.
+- Backups are named kernel_NNN.cpp automatically by the harness — do not add timestamps yourself.
 
 ## Cycle reduction techniques (in rough order of impact)
 - `#pragma HLS PIPELINE II=1` on the innermost loop
