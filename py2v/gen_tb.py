@@ -166,8 +166,8 @@ def generate(manifest, io_dir, sim_dir):
     L.append('#include <cstdlib>')
     L.append('#include "kernel.h"')
     L.append('')
-    L.append(f'static const char IO_DIR[]  = "{io_dir_str}";')
-    L.append(f'static const char SIM_DIR[] = "{sim_dir_str}";')
+    L.append(f'#define IO_DIR  "{io_dir_str}"')
+    L.append(f'#define SIM_DIR "{sim_dir_str}"')
     L.append('')
 
     dim_macros = _c_dim_macros(tensors)
