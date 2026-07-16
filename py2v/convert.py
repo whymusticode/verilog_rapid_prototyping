@@ -12,6 +12,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from py2v.client import Client, cached, text
 from py2v.util import compare, git_hash, next_version
+from py2v.gen_tb import generate as gen_tb
 
 PROMPT = (Path(__file__).parent / "prompts" / "py2hls.md").read_text()
 FILE_RE = re.compile(r"=== FILE: ([^\n=]+) ===\n(.*?)(?=\n=== FILE: |\Z)", re.S)
@@ -56,26 +57,32 @@ else:
     (build / f"llm_response_{ver:03d}.txt").write_text(res_text)
     cost = client.usage.estimate_cost_usd()
 
+# Extract only kernel.h and kernel.cpp from LLM response (tb.cpp is generated)
 files = {m.group(1).strip(): m.group(2).strip() for m in FILE_RE.finditer(res_text)}
+files = {k: v for k, v in files.items() if "tb.cpp" not in k}
 if not files:
     sys.exit("no === FILE: ... === blocks in LLM response; see latest llm_response_NNN.txt")
 for rel, body in files.items():
     p = build / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(body + ("\n" if not body.endswith("\n") else ""))
-print(f"wrote {len(files)} file(s) under {build}")
+print(f"wrote {len(files)} file(s) from LLM under {build}")
+
+# Generate tb.cpp deterministically
+tb_src = gen_tb(manifest, io_dir, sim)
+(hls / "tb.cpp").write_text(tb_src)
+print(f"generated tb.cpp")
 
 part = params["part"]
 clk_hz = float(params.get("clock", {}).get("freq_hz", 200e6))
 period_ns = 1000.0 / (clk_hz / 1e6)
 
 # Vitis 2025+ dropped the standalone vitis_hls CLI; csim is driven via Python API.
-# workspace=conv so tb.cpp's "../<name>_io/" resolves to conv/<name>_io/ correctly.
+# workspace=conv so tb.cpp's IO paths resolve correctly.
 py_script = f"""\
 import vitis, os, shutil
 conv = {str(conv)!r}
 build = {str(build)!r}
-io_name = {(name + '_io')!r}
 c = vitis.create_client()
 c.update_workspace(conv)
 c.set_workspace(conv)
