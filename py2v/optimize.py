@@ -165,9 +165,16 @@ def _apply_tools(conv, build, response_text, round_num):
     return reads
 
 
+def _csim_failed(summary):
+    return all(t.get("max_abs_err") is None for t in summary["tensors"])
+
+
 def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num):
     clock = summary.get("clock_cycles")
-    goal = f"**Goal: reduce clock_cycles (currently {clock}). Do NOT attempt to fix numerical accuracy.**"
+    if _csim_failed(summary):
+        goal = "**C-simulation FAILED to compile or run. Fix the compile error shown in csim.log below.**"
+    else:
+        goal = f"**Goal: reduce clock_cycles (currently {clock}). Do NOT attempt to fix numerical accuracy.**"
     lines = [
         f"## Round {round_num} — Current State\n",
         f"{goal}\n\n",
@@ -178,7 +185,8 @@ def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num):
     for fname, content in hls_contents.items():
         lines.append(f"\n### {fname}\n```cpp\n{content}\n```\n")
     if extra_reads:
-        lines.append("\n## Files you requested last round\n")
+        label = "## csim.log" if any("csim.log" in k for k in extra_reads) else "## Files you requested last round"
+        lines.append(f"\n{label}\n")
         for path, content in extra_reads.items():
             lines.append(f"\n### {path}\n```\n{content}\n```\n")
     return "".join(lines)
@@ -197,8 +205,12 @@ manifest = json.loads((io_dir / "manifest.json").read_text())
 build = conv / "build"
 client = Client(monitor_log=build / "monitor.log")
 
-extra_reads = {}
 total_cost = 0.0
+
+# Pre-populate csim.log if the current state is already a compile failure
+csim_log = build / "csim.log"
+initial_summary = _read_summary(build, io_dir, manifest, params)
+extra_reads = {"csim.log": csim_log.read_text()[-3000:]} if _csim_failed(initial_summary) and csim_log.exists() else {}
 
 for round_num in range(1, max_rounds + 1):
     print(f"\n{'='*60}")
