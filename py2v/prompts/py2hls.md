@@ -35,5 +35,10 @@ No markdown fences. No commentary outside the file blocks.
     Same flat format as inputs.
 - Kernel: C++17, HLS-friendly (no `malloc`, no iostream in `kernel.cpp`).
 - Minimal pragmas on `kernel_top` and one inner loop.
+- Add a `uint32_t &clock_cycles` output argument to `kernel_top`. Inside the kernel,
+  count every loop iteration that executes and accumulate into `clock_cycles` before
+  returning. This is a C-sim proxy for hardware cycle count (proportional to latency).
+- In `tb.cpp`, after calling `kernel_top`, write `clock_cycles` to
+  `<SIM_DIR>clock_cycles.txt` as a single integer line.
 
 When all three files are complete, stop.

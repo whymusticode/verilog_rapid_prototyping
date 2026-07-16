@@ -31,6 +31,20 @@ python -c "import json; m=json.load(open('$conv/${name}_io/manifest.json')); t=n
 
 # STEP 3: LLM → HLS C++, csim, compare against captured I/O
 python py2v/convert.py "$conv"
+rc=$?
+
+# STEP 4: optimization loop — runs whether or not step 3 passed.
+# Give the optimizer fewer rounds when the first draft failed (numerical issues need bigger
+# changes; if it can't fix it in 5 rounds it likely needs a full regeneration).
+if [ $rc -eq 0 ]; then
+    python py2v/optimize.py "$conv"
+else
+    echo "Step 3 failed (rc=$rc) — running optimizer in repair mode (5 rounds max)."
+    python py2v/optimize.py "$conv" --max-rounds 5
+fi
+
+
+
 
 # TODO:
 # rename repo to rapid FPGA prototyping, py2FPGA 
