@@ -31,3 +31,18 @@ python -c "import json; m=json.load(open('$conv/${name}_io/manifest.json')); t=n
 
 # STEP 3: LLM → HLS C++, csim, compare against captured I/O
 python py2v/convert.py "$conv"
+
+# TODO:
+# rename repo to rapid FPGA prototyping, py2FPGA 
+# 
+# target error should be in params in # bits
+# target timing in params in ns 
+# do PnR to feedback hw info 
+# run again with context (timing info): give model ability to modify current file, including print statements that it can collect 
+
+# channelizer: 
+#   pluto: ZYNQ 7010 
+#   look at the IP catalog too
+# harness sim output?
+
+
