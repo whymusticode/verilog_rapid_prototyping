@@ -154,8 +154,11 @@ def _apply_tools(conv, build, response_text, round_num):
 
 
 def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num):
+    clock = summary.get("clock_cycles")
+    goal = f"**Goal: reduce clock_cycles (currently {clock}). Do NOT attempt to fix numerical accuracy.**"
     lines = [
         f"## Round {round_num} — Current State\n",
+        f"{goal}\n\n",
         f"```json\n{json.dumps(summary, indent=2)}\n```\n",
         f"\n## params.yaml\n```yaml\n{params_text}```\n",
         f"\n## Current HLS files\n",
