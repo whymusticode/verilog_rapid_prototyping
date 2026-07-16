@@ -18,3 +18,6 @@ fixed-point.
 
 **Fix added:** Both `py2hls.md` and `optimize.md` now ban `double`/`float` in
 `kernel.cpp` and `kernel.h`.
+
+**Recurrence:** conversion_021 did the same thing after the ban was temporarily removed
+during refactoring. Ban restored to `py2hls.md`.

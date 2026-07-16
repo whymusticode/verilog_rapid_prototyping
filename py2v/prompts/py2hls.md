@@ -44,6 +44,7 @@ struct in0_t { in0_scalar_t re, im; };
 - Scalar outputs are passed by pointer (`out0_t *out0`).
 - Array outputs are passed as arrays (`out1_t out1[DIM_OUT1_0][DIM_OUT1_1]`).
 - Kernel: C++17, HLS-friendly (no `malloc`, no `iostream` in `kernel.cpp`).
+- **No `double` or `float` anywhere in `kernel.cpp` or `kernel.h`** — use `ap_fixed`/`ap_int` for all arithmetic, including intermediate values and transcendental approximations.
 - Minimal pragmas on `kernel_top` and inner loops.
 
 When both files are complete, stop.
