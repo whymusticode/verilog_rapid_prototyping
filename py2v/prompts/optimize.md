@@ -6,7 +6,7 @@ reduce `clock_cycles`. Do not attempt to fix numerical accuracy.
 **The current error is acceptable.** If `max_abs_err_bits` is in single digits,
 that is good enough — do not touch the algorithm to improve it. If you reduce
 clock_cycles without making `max_abs_err_bits` significantly worse (more than
-~3 bits worse), that is a success.
+~6 bits worse), that is a success.
 
 You will be given:
 - The current summary (clock_cycles, max_abs_err_bits per tensor)
