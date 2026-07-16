@@ -34,6 +34,9 @@ No markdown fences. No commentary outside the file blocks.
     (same exact path string, same basename as reference capture).
     Same flat format as inputs.
 - Kernel: C++17, HLS-friendly (no `malloc`, no iostream in `kernel.cpp`).
+- **No `double` or `float` anywhere in `kernel.cpp` or `kernel.h`.** All arithmetic
+  must use `ap_fixed` / `ap_int` types. Using floating-point internally defeats HLS
+  synthesis and makes the C-sim cycle count meaningless.
 - Minimal pragmas on `kernel_top` and one inner loop.
 - Add a `uint32_t &clock_cycles` output argument to `kernel_top`. Inside the kernel,
   count every loop iteration that executes and accumulate into `clock_cycles` before

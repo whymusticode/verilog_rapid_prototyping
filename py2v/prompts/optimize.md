@@ -50,6 +50,12 @@ TOOL: write_plan
 
 TOOL: done
 
+## Hard constraints
+- **No `double` or `float` anywhere in `kernel.cpp` or `kernel.h`.** All arithmetic
+  must use `ap_fixed` / `ap_int`. Using floating-point defeats HLS synthesis and makes
+  the C-sim `clock_cycles` proxy meaningless — a kernel that runs in 45 cycles because
+  it uses doubles is not a win.
+
 ## Cycle reduction techniques (in rough order of impact)
 - `#pragma HLS PIPELINE II=1` on the innermost loop
 - `#pragma HLS UNROLL factor=N` on small fixed loops
