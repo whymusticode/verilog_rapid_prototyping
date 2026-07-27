@@ -1,0 +1,16 @@
+name: zu7ev
+part: xczu7ev-ffvc1156-2-e
+family: zynq_ultrascale_plus
+default_clock_mhz: 100
+max_clock_mhz: 300
+resources:
+  lut: 230400
+  dsp: 1728
+  bram: 312
+constraints:
+  template: timing_only
+  xdc: null
+notes:
+  - "Xilinx Zynq UltraScale+ MPSoC ZU7EV (ariEdge demo target)"
+  - "Headless synth: PnR runs without board-specific pinout, timing-only XDC"
+  - "Add a custom xdc field if a specific carrier card is targeted"

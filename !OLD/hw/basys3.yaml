@@ -1,0 +1,16 @@
+name: basys3
+part: xc7a35tcpg236-1
+family: artix7
+default_clock_mhz: 100
+max_clock_mhz: 250
+resources:
+  lut: 20800
+  dsp: 90
+  bram: 50
+constraints:
+  template: basys3_uart
+  xdc: ip_custom/evd_10x10/Basys3.xdc
+notes:
+  - "Digilent Basys 3 dev board (Artix-7 XC7A35T)"
+  - "Onboard: 100 MHz osc, 16 LEDs, 16 switches, 5 buttons, 4-digit 7-seg, USB-UART"
+  - "Defaults to 115200 baud UART (CLKS_PER_BIT=868 at 100 MHz)"

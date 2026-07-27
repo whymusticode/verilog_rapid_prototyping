@@ -1,0 +1,37 @@
+
+part: xczu7ev-ffvc1156-2-e
+clock:
+  name: clk
+  freq_hz: 200000000
+reset:
+  name: rst
+  active_level: high
+  sync: true
+
+input:
+  acm:
+    bits: 22
+    complex: 1
+    signed: 1
+    fraction: 0
+  max_iter:
+    bits: 16
+    complex: 0
+    signed: 0
+    fraction: 0
+output:
+  eigenvalues:
+    bits: 22
+    complex: 1
+    signed: 1
+    fraction: 0
+  eigenvectors:
+    bits: 22
+    complex: 1
+    signed: 1
+    fraction: 20
+  ite:
+    bits: 16
+    complex: 0
+    signed: 0
+    fraction: 0

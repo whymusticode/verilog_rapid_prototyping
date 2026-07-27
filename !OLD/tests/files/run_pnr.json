@@ -1,0 +1,26 @@
+{
+  "pass": true,
+  "phase": "synth",
+  "mode": "hls_csynth",
+  "clock_mhz": 100.0,
+  "period_ns": 10.0,
+  "wns_ns": null,
+  "fmax_mhz": 137.3,
+  "latency_cycles": 48213,
+  "util": {
+    "lut_as_logic": {
+      "used": 8421,
+      "pct": null
+    },
+    "block_ram_tile": {
+      "used": 12,
+      "pct": null
+    },
+    "dsps": {
+      "used": 64,
+      "pct": null
+    }
+  },
+  "errors": [],
+  "log_tail": "INFO: [HLS 200-111] Finished Command csynth_design."
+}

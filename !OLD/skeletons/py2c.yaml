@@ -1,0 +1,18 @@
+module_name: top                     # snake_case top-level module name
+description: ""                       # one-line summary
+part: xc7a35tcpg236-1                 # Xilinx part number for route + place
+clock:
+  name: clk
+  freq_hz: 100000000                  # default 100 MHz
+reset:
+  name: rst
+  active_level: high                  # high | low
+  sync: true                          # true = synchronous, false = asynchronous
+parameters: []                        # list of {name, value, description}
+inputs: []                            # list of {name, width, signed, description}
+outputs: []                           # list of {name, width, signed, description}
+fixed_point:
+  total_bits: 16
+  frac_bits: 8
+pipeline_stages: 1
+notes: []                             # freeform list of constraints / open questions
