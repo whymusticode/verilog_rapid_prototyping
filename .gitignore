@@ -11,6 +11,7 @@ __pycache__/
 hs_err_pid*.log
 
 # put secrets in .env, it is gitignored. 
+.py2v_cache/
 .env 
 conversion_*/
 # notes.sh
