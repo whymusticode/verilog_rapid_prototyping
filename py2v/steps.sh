@@ -7,6 +7,33 @@
 # 
 # 
 
+##### TODO:
+# do research for implementations, ideas how to get good performance 
+# start with bit true python simulation
+# convert metric of bits error to bits precision 
+# fundamentally need to change the scope to allow/encourage the AI to try entirely new algorithms 
+# encourage wide bitwidths internally when we start, those won't dominate performance and might only double area in worst case, we can optimize down bitwidths as the very last step
+##### end todo 
+
+# simulation: basic first pass,
+# synthesis: if I actually built this out of Xilinx logic cells, would signals settle in time for a 5ns clock? gives WNS. needs to be <= 0 for success at a clock speed. 
+
+# do PnR to feedback hw info 
+# run again with context (timing info): give model ability to modify current file, including print statements that it can collect 
+# channelizer Project: 
+#   pluto: ZYNQ 7010 
+#   look at the IP catalog too
+# harness sim output?
+
+
+### manual notes: 
+# grep -n "\\\$display\|sidx\b" /home/mbenton/verilog_rapid_prototyping/conversion_manual_000/build/hls/kernel.sv
+
+# cd /home/mbenton/verilog_rapid_prototyping/conversion_manual_000/build/hls
+# iverilog -g2012 -o ../sim.out kernel.sv tb.sv 2>&1 | tail -40
+# vvp ../sim.out 2>&1 | tail -20
+
+
 # proc = subprocess.run(
 #     [hls_bin, "-f", "run_csim.tcl"],
 # ...<3 lines>...
@@ -44,19 +71,4 @@ else
 fi
 
 # python py2v/convert.py conversion_020 --from-response
-
-
-# TODO:
-# rename repo to rapid FPGA prototyping, py2FPGA 
-# 
-# target error should be in params in # bits
-# target timing in params in ns 
-# do PnR to feedback hw info 
-# run again with context (timing info): give model ability to modify current file, including print statements that it can collect 
-
-# channelizer: 
-#   pluto: ZYNQ 7010 
-#   look at the IP catalog too
-# harness sim output?
-
 

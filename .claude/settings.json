@@ -3,7 +3,11 @@
     "allow": [
       "Edit(/home/mbenton/verilog_rapid_prototyping/conversion_*)",
       "Write(/home/mbenton/verilog_rapid_prototyping/conversion_*)",
-      "Bash(python py2v/convert.py *)"
+      "Bash(python py2v/convert.py *)",
+      "Bash(iverilog -g2012 -o /tmp/sim_kernel.vvp -I . tb.sv kernel_top.sv coeff_gen.sv rsqrt_core.sv)",
+      "Read(//tmp/**)",
+      "Bash(vvp /tmp/sim_kernel.vvp)",
+      "Bash(iverilog -g2012 -o /tmp/sim_kernel3.vvp -I . tb.sv kernel_top.sv coeff_gen.sv rsqrt_core.sv)"
     ]
   }
 }

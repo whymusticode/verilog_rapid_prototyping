@@ -15,9 +15,17 @@ import anthropic
 from .cache import advisory_lock, llm_cache_dir, read_json, stable_hash, write_json
 
 # https://platform.claude.com/docs/en/about-claude/models/overview
-MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 16384
+MODEL = "claude-sonnet-5"
+MAX_TOKENS = 65536
 in_price, out_price = 3.0, 15.0
+
+# Opus 5 uses "adaptive" thinking + output_config.effort (not the older
+# enabled/budget_tokens scheme) -- thinking tokens are NOT separately budgeted,
+# they count against max_tokens, so a hard prompt can spend the whole budget on
+# thinking and leave zero room for the actual response (hit exactly this: a
+# ThinkingBlock consumed all 32768 tokens before any Verilog was emitted).
+THINKING = {"type": "adaptive"}
+THINKING_EFFORT = "low"  # low | medium | high | xhigh | max
 
 MONITOR_LOG = "monitor.log"
 LLM_CACHE_ENABLED = True
@@ -100,6 +108,8 @@ class Client:
             "model": self.model,
             "max_tokens": max_tokens or self.max_tokens,
             "messages": messages,
+            "thinking": THINKING,
+            "output_config": {"effort": THINKING_EFFORT},
         }
         if system is not None:
             kwargs["system"] = system
@@ -120,7 +130,14 @@ class Client:
         self.cache_misses += 1
         print(f"[py2v-cache] llm cache miss: {self._cache_path(cache_key)}")
 
-        response = self._with_retry(self._client.messages.create, **kwargs)
+        # The SDK refuses non-streaming calls whose max_tokens implies a
+        # request that could run past its internal 10-minute cutoff (this
+        # trips well below max_tokens=32768 on the default 16384-token
+        # threshold estimate) -- stream and collect the final message instead.
+        if kwargs["max_tokens"] > 8192:
+            response = self._with_retry(self._create_via_stream, **kwargs)
+        else:
+            response = self._with_retry(self._client.messages.create, **kwargs)
         self.usage.add(response.usage)
         self._call_count += 1
         self._write_monitor(response.usage)
@@ -210,6 +227,10 @@ class Client:
         except OSError:
             pass
 
+    def _create_via_stream(self, **kwargs):
+        with self._client.messages.stream(**kwargs) as stream:
+            return stream.get_final_message()
+
     def _with_retry(self, fn, **kwargs):
         delay = 2.0
         last_exc: Optional[Exception] = None
@@ -238,6 +259,8 @@ class Client:
             "tools": kwargs.get("tools"),
             "tool_choice": kwargs.get("tool_choice"),
             "extra_headers": kwargs.get("extra_headers"),
+            "thinking": kwargs.get("thinking"),
+            "output_config": kwargs.get("output_config"),
         }
         return stable_hash(payload, namespace="llm-v1")
 
@@ -270,6 +293,8 @@ class Client:
                 "system": kwargs.get("system"),
                 "tools": kwargs.get("tools"),
                 "tool_choice": kwargs.get("tool_choice"),
+                "thinking": kwargs.get("thinking"),
+                "output_config": kwargs.get("output_config"),
                 "extra_headers": kwargs.get("extra_headers"),
             },
             "response": {
@@ -343,6 +368,8 @@ class _MiniContent:
     id: str | None = None
     name: str | None = None
     input: dict[str, Any] | None = None
+    thinking: str | None = None
+    signature: str | None = None
 
 
 @dataclass
@@ -363,6 +390,12 @@ def _serialize_content_block(block: Any) -> dict[str, Any]:
             "name": getattr(block, "name", ""),
             "input": getattr(block, "input", {}) or {},
         }
+    if btype == "thinking":
+        return {
+            "type": "thinking",
+            "thinking": getattr(block, "thinking", ""),
+            "signature": getattr(block, "signature", ""),
+        }
     return {"type": "unknown"}
 
 
@@ -370,6 +403,12 @@ def _hydrate_content_block(payload: dict[str, Any]) -> _MiniContent:
     btype = payload.get("type", "unknown")
     if btype == "text":
         return _MiniContent(type="text", text=str(payload.get("text", "")))
+    if btype == "thinking":
+        return _MiniContent(
+            type="thinking",
+            thinking=str(payload.get("thinking", "")),
+            signature=str(payload.get("signature", "")),
+        )
     if btype == "tool_use":
         return _MiniContent(
             type="tool_use",

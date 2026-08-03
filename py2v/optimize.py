@@ -1,11 +1,11 @@
-"""HLS optimization loop — iterates LLM tool calls to minimize clock_cycles.
+"""HLS/Verilog optimization loop — iterates LLM tool calls to minimize clock_cycles.
 
 Usage:
-  python py2v/optimize.py <conversion_dir> [--max-rounds N]
+  python py2v/optimize.py <conversion_dir> [--max-rounds N] [--backend hls|verilog]
 
-Each round: show LLM the current summary + HLS files, it emits tool calls
+Each round: show LLM the current summary + kernel files, it emits tool calls
 (backup_file, write_file, read_file, write_plan, done), harness executes them,
-runs C-sim, appends to summary.json, feeds results back.
+runs the sim (Vitis csim or iverilog), appends to summary.json, feeds results back.
 """
 import json, os, re, shutil, subprocess, sys
 from pathlib import Path
@@ -15,8 +15,6 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from py2v.client import Client, cached, text
 from py2v.util import compare, git_hash, next_version
-
-OPTIMIZE_PROMPT = (Path(__file__).parent / "prompts" / "optimize.md").read_text()
 
 TOOL_RE = re.compile(
     r"TOOL: (\w+)\n"
@@ -74,6 +72,29 @@ vitis.dispose()
     return proc.returncode
 
 
+def _run_iverilog(conv, build, params):
+    hls = build / "hls"
+    sim_bin = build / "sim.out"
+    env = os.environ.copy()
+    compile_proc = subprocess.run(
+        ["iverilog", "-g2012", "-I", str(hls), "-o", str(sim_bin),
+         str(hls / "kernel.sv"), str(hls / "tb.sv")],
+        cwd=str(conv), env=env, capture_output=True, text=True,
+    )
+    log = (compile_proc.stdout or "") + (compile_proc.stderr or "")
+    if compile_proc.returncode != 0:
+        (build / "csim.log").write_text(log)
+        return compile_proc.returncode
+
+    run_proc = subprocess.run(
+        ["vvp", str(sim_bin)],
+        cwd=str(conv), env=env, capture_output=True, text=True,
+    )
+    log += (run_proc.stdout or "") + (run_proc.stderr or "")
+    (build / "csim.log").write_text(log)
+    return run_proc.returncode
+
+
 def _read_summary(build, io_dir, manifest, params):
     sim = build / "sim"
     cmp = compare(io_dir, sim, manifest, params=params)
@@ -92,18 +113,18 @@ def _append_summary(build, summary, conv):
     history_path.write_text(json.dumps(history, indent=2))
 
 
-def _hls_contents(build):
+def _hls_contents(build, filenames):
     result = {}
-    for fname in ["kernel.h", "kernel.cpp", "tb.cpp"]:
+    for fname in filenames:
         p = build / "hls" / fname
         if p.exists():
             result[fname] = p.read_text()
     return result
 
 
-def _next_backup_ver(build):
-    """Return next NNN for kernel_NNN.cpp backups."""
-    existing = list((build / "hls").glob("kernel_[0-9]*.cpp"))
+def _next_backup_ver(build, suffix):
+    """Return next NNN for kernel_NNN.<suffix> backups."""
+    existing = list((build / "hls").glob(f"kernel_[0-9]*.{suffix}"))
     indices = []
     for p in existing:
         try:
@@ -136,7 +157,7 @@ def _apply_tools(conv, build, response_text, round_num):
         if tool == "backup_file" and path_str:
             src = _resolve(build, path_str)
             if src.exists():
-                ver = _next_backup_ver(build)
+                ver = _next_backup_ver(build, src.suffix.lstrip("."))
                 dst = src.parent / f"{src.stem}_{ver:03d}{src.suffix}"
                 shutil.copy2(src, dst)
                 print(f"  backed up {src.name} → {dst.name}")
@@ -169,10 +190,10 @@ def _csim_failed(summary):
     return all(t.get("max_abs_err") is None for t in summary["tensors"])
 
 
-def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num):
+def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num, lang="cpp"):
     clock = summary.get("clock_cycles")
     if _csim_failed(summary):
-        goal = "**C-simulation FAILED to compile or run. Fix the compile error shown in csim.log below.**"
+        goal = "**Simulation FAILED to compile or run. Fix the compile error shown in csim.log below.**"
     else:
         goal = f"**Goal: reduce clock_cycles (currently {clock}). Do NOT attempt to fix numerical accuracy.**"
     lines = [
@@ -180,10 +201,10 @@ def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num):
         f"{goal}\n\n",
         f"```json\n{json.dumps(summary, indent=2)}\n```\n",
         f"\n## params.yaml\n```yaml\n{params_text}```\n",
-        f"\n## Current HLS files\n",
+        f"\n## Current kernel files\n",
     ]
     for fname, content in hls_contents.items():
-        lines.append(f"\n### {fname}\n```cpp\n{content}\n```\n")
+        lines.append(f"\n### {fname}\n```{lang}\n{content}\n```\n")
     if extra_reads:
         label = "## csim.log" if any("csim.log" in k for k in extra_reads) else "## Files you requested last round"
         lines.append(f"\n{label}\n")
@@ -196,6 +217,17 @@ def _build_ctx(summary, hls_contents, extra_reads, params_text, round_num):
 
 conv = Path(sys.argv[1]).resolve()
 max_rounds = int(next((sys.argv[i+1] for i, a in enumerate(sys.argv) if a == "--max-rounds"), 10))
+backend = next((sys.argv[i+1] for i, a in enumerate(sys.argv) if a == "--backend"), "hls")
+assert backend in ("hls", "verilog"), f"unknown --backend {backend!r}"
+
+OPTIMIZE_PROMPT = (Path(__file__).parent / "prompts" /
+                    ("optimize_verilog.md" if backend == "verilog" else "optimize.md")).read_text()
+KERNEL_FILES = ["kernel.h.sv", "kernel.sv", "tb.sv"] if backend == "verilog" else ["kernel.h", "kernel.cpp", "tb.cpp"]
+LANG = "systemverilog" if backend == "verilog" else "cpp"
+SYSTEM_PROMPT = ("You are a Verilog/SystemVerilog optimization engineer. Respond only with tool calls."
+                  if backend == "verilog" else
+                  "You are a Vitis HLS C++ optimization engineer. Respond only with tool calls.")
+_run_sim = _run_iverilog if backend == "verilog" else _run_csim
 
 params = yaml.safe_load((conv / "params.yaml").read_text()) or {}
 name = params["name"]
@@ -220,15 +252,15 @@ for round_num in range(1, max_rounds + 1):
     summary = _read_summary(build, io_dir, manifest, params)
     print(json.dumps(summary, indent=2))
 
-    hls_contents = _hls_contents(build)
-    ctx = _build_ctx(summary, hls_contents, extra_reads, (conv / "params.yaml").read_text(), round_num)
+    hls_contents = _hls_contents(build, KERNEL_FILES)
+    ctx = _build_ctx(summary, hls_contents, extra_reads, (conv / "params.yaml").read_text(), round_num, lang=LANG)
 
     ver = next_version(build, "llm_response")
     (build / f"prompt_{ver:03d}.txt").write_text(ctx)
 
     res = client.chat(
         messages=[{"role": "user", "content": [cached(OPTIMIZE_PROMPT), text(ctx)]}],
-        system=[cached("You are a Vitis HLS C++ optimization engineer. Respond only with tool calls.")],
+        system=[cached(SYSTEM_PROMPT)],
     )
     res_text = _strip_fences(res.text)
     round_cost = client.usage.estimate_cost_usd() - total_cost
@@ -243,9 +275,9 @@ for round_num in range(1, max_rounds + 1):
         continue
 
     print("  Running C-sim...")
-    rc = _run_csim(conv, build, params)
+    rc = _run_sim(conv, build, params)
     if rc != 0:
-        print(f"  C-sim failed (rc={rc}); see build/csim.log — continuing to next round")
+        print(f"  sim failed (rc={rc}); see build/csim.log — continuing to next round")
         extra_reads = {"build/csim.log": (build / "csim.log").read_text()[-3000:]}
         continue
 
