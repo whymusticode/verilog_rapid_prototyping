@@ -136,6 +136,9 @@ def main() -> int:
 
     work = (args.io or conversion_dir / "IO").resolve()
     work.mkdir(parents=True, exist_ok=True)
+    for asset in rtl_dir.iterdir():
+        if asset.is_file() and asset.suffix.lower() in {".hex", ".mif"}:
+            shutil.copy2(asset, work / asset.name)
     (work / "vectors.hex").write_text("\n".join(pack_hex(v, bits) for v in q_inputs) + "\n")
     tb = work / "tb.sv"
     in_lanes = len(q_inputs[0]) // count

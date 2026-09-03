@@ -1,0 +1,105 @@
+# Proposed additions only. This is not an active .gitmodules file.
+# RTL_examples/dblclockfft already exists and is intentionally omitted.
+
+[submodule "RTL_examples/verilog-axis"]
+	path = RTL_examples/verilog-axis
+	url = https://github.com/alexforencich/verilog-axis.git
+[submodule "RTL_examples/verilog-axi"]
+	path = RTL_examples/verilog-axi
+	url = https://github.com/alexforencich/verilog-axi.git
+[submodule "RTL_examples/verilog-ethernet"]
+	path = RTL_examples/verilog-ethernet
+	url = https://github.com/alexforencich/verilog-ethernet.git
+[submodule "RTL_examples/verilog-pcie"]
+	path = RTL_examples/verilog-pcie
+	url = https://github.com/alexforencich/verilog-pcie.git
+[submodule "RTL_examples/corundum"]
+	path = RTL_examples/corundum
+	url = https://github.com/corundum/corundum.git
+[submodule "RTL_examples/taxi"]
+	path = RTL_examples/taxi
+	url = https://github.com/fpganinja/taxi.git
+[submodule "RTL_examples/wb2axip"]
+	path = RTL_examples/wb2axip
+	url = https://github.com/ZipCPU/wb2axip.git
+[submodule "RTL_examples/zipcpu"]
+	path = RTL_examples/zipcpu
+	url = https://github.com/ZipCPU/zipcpu.git
+[submodule "RTL_examples/sdspi"]
+	path = RTL_examples/sdspi
+	url = https://github.com/ZipCPU/sdspi.git
+[submodule "RTL_examples/wbuart32"]
+	path = RTL_examples/wbuart32
+	url = https://github.com/ZipCPU/wbuart32.git
+[submodule "RTL_examples/ibex"]
+	path = RTL_examples/ibex
+	url = https://github.com/lowRISC/ibex.git
+[submodule "RTL_examples/cva6"]
+	path = RTL_examples/cva6
+	url = https://github.com/openhwgroup/cva6.git
+[submodule "RTL_examples/cv32e40p"]
+	path = RTL_examples/cv32e40p
+	url = https://github.com/openhwgroup/cv32e40p.git
+[submodule "RTL_examples/Cores-VeeR-EH1"]
+	path = RTL_examples/Cores-VeeR-EH1
+	url = https://github.com/chipsalliance/Cores-VeeR-EH1.git
+[submodule "RTL_examples/picorv32"]
+	path = RTL_examples/picorv32
+	url = https://github.com/YosysHQ/picorv32.git
+[submodule "RTL_examples/serv"]
+	path = RTL_examples/serv
+	url = https://github.com/olofk/serv.git
+[submodule "RTL_examples/VexRiscv"]
+	path = RTL_examples/VexRiscv
+	url = https://github.com/SpinalHDL/VexRiscv.git
+[submodule "RTL_examples/black-parrot"]
+	path = RTL_examples/black-parrot
+	url = https://github.com/black-parrot/black-parrot.git
+[submodule "RTL_examples/pulp-axi"]
+	path = RTL_examples/pulp-axi
+	url = https://github.com/pulp-platform/axi.git
+[submodule "RTL_examples/common_cells"]
+	path = RTL_examples/common_cells
+	url = https://github.com/pulp-platform/common_cells.git
+[submodule "RTL_examples/cvfpu"]
+	path = RTL_examples/cvfpu
+	url = https://github.com/openhwgroup/cvfpu.git
+[submodule "RTL_examples/pulpino"]
+	path = RTL_examples/pulpino
+	url = https://github.com/pulp-platform/pulpino.git
+[submodule "RTL_examples/analogdevicesinc-hdl"]
+	path = RTL_examples/analogdevicesinc-hdl
+	url = https://github.com/analogdevicesinc/hdl.git
+[submodule "RTL_examples/litedram"]
+	path = RTL_examples/litedram
+	url = https://github.com/enjoy-digital/litedram.git
+[submodule "RTL_examples/liteeth"]
+	path = RTL_examples/liteeth
+	url = https://github.com/enjoy-digital/liteeth.git
+[submodule "RTL_examples/litepcie"]
+	path = RTL_examples/litepcie
+	url = https://github.com/enjoy-digital/litepcie.git
+[submodule "RTL_examples/litesata"]
+	path = RTL_examples/litesata
+	url = https://github.com/enjoy-digital/litesata.git
+[submodule "RTL_examples/hdmi"]
+	path = RTL_examples/hdmi
+	url = https://github.com/hdl-util/hdmi.git
+[submodule "RTL_examples/FPGA-USB-Device"]
+	path = RTL_examples/FPGA-USB-Device
+	url = https://github.com/WangXuan95/FPGA-USB-Device.git
+[submodule "RTL_examples/ultraembedded-cores"]
+	path = RTL_examples/ultraembedded-cores
+	url = https://github.com/ultraembedded/cores.git
+[submodule "RTL_examples/core_jpeg"]
+	path = RTL_examples/core_jpeg
+	url = https://github.com/ultraembedded/core_jpeg.git
+[submodule "RTL_examples/async_fifo"]
+	path = RTL_examples/async_fifo
+	url = https://github.com/dpretet/async_fifo.git
+[submodule "RTL_examples/secworks-aes"]
+	path = RTL_examples/secworks-aes
+	url = https://github.com/secworks/aes.git
+[submodule "RTL_examples/secworks-sha256"]
+	path = RTL_examples/secworks-sha256
+	url = https://github.com/secworks/sha256.git
