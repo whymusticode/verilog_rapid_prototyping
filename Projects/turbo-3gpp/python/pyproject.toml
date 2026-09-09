@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turbo-3gpp"
+version = "0.1.0"
+description = "NumPy port of turbo-3gpp-matlab with Octave differential tests"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "matplotlib>=3.6"]
+license = {text = "GPL-3.0-or-later"}
+
+[project.optional-dependencies]
+test = ["scipy>=1.10", "plotly>=5"]
+
+[tool.setuptools.packages.find]
+include = ["turbo_3gpp*"]
