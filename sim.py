@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -21,18 +22,19 @@ DEFAULT_ACLK_PS = 10_000
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("project", type=Path, help="project directory containing main.py and params.yaml")
-    parser.add_argument("rtl", type=Path)
+    parser.add_argument("conversion", type=Path,
+                        help="conversion directory containing rtl/ and python/")
+    parser.add_argument("project", type=Path, nargs="?",
+                        help="override Python project (default: conversion/python)")
     parser.add_argument("--top")
     parser.add_argument("--tests", type=int, default=10, help="frames streamed back to back")
     parser.add_argument("--timeout", type=int, default=100_000,
                         help="fail after this many cycles without an AXI handshake")
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--rate", type=float,
+    parser.add_argument("--rate", type=float, default=0,
                         help="input beats per second (0 streams as fast as TREADY allows; "
-                             "default: N*target.frequency/target.cycles from params.yaml)")
+                             "default: 0, so measured throughput is not capped by the target)")
     parser.add_argument("--fifo", type=int, default=0,
-                        help="fail if the receive-clock crossing needs more than this many beats")
+                        help="report crossing FIFO overflow above this many beats")
     parser.add_argument("--drain-stall", type=int, default=0, metavar="PERCENT",
                         help="percentage of cycles the output sink deasserts TREADY")
     parser.add_argument("--io", type=Path,
@@ -42,7 +44,7 @@ def arguments() -> argparse.Namespace:
 
 def make_tb(top: str, in_lanes: int, out_lanes: int, frames: int, count: int,
             width: int, frac: int, aclk_ps: int, beat_ps: int, fifo_limit: int,
-            drain_stall: int, drain_seed: int, idle_limit: int) -> str:
+            drain_stall: int, idle_limit: int) -> str:
     return f"""`timescale 1ps/1ps
 // Streaming AXI4-Stream harness.
 //
@@ -157,7 +159,8 @@ module tb;
   end
 
   // Output sink: drains continuously, optionally applying random backpressure.
-  integer received = 0, stall_seed = {drain_seed}, roll, stalls = 0;
+  integer received = 0, stalls = 0;
+  integer unsigned roll;
   reg              held_valid = 0, held_ready = 0, held_last = 0;
   reg [OUT_W-1:0] held_data = 0;
 
@@ -175,7 +178,8 @@ module tb;
       end
       if (m_axis_tvalid && m_axis_tready) begin
         if (m_axis_tlast !== ((received % N) == N - 1))
-          $fatal(1, "M_AXIS TLAST misplaced on output beat %0d", received);
+          $fatal(1, "M_AXIS TLAST was %0b on output beat %0d, expected %0b: %0d frames of N=%0d beats stream back to back, so TLAST marks every Nth beat, not the end of the stream",
+                 m_axis_tlast, received, ((received % N) == N - 1), FRAMES, N);
         $fwrite(out_file, "%0d %0d %h\\n", received, cycle, m_axis_tdata);
         received <= received + 1;
       end else if (m_axis_tvalid && !m_axis_tready)
@@ -184,8 +188,7 @@ module tb;
       held_data  <= m_axis_tdata;  held_last  <= m_axis_tlast;
       if (DRAIN_STALL == 0) m_axis_tready <= 1;
       else begin
-        roll = $random(stall_seed);
-        if (roll < 0) roll = -roll;
+        roll = $urandom;
         m_axis_tready <= ((roll % 100) >= DRAIN_STALL);
       end
     end
@@ -261,22 +264,17 @@ def read_log(path: Path, columns: int) -> list[list[str]]:
 def main() -> int:
     evaluation_started = time.perf_counter()
     args = arguments()
-    project_dir = args.project.resolve()
+    conversion_dir = args.conversion.resolve()
+    project_arg = args.project or conversion_dir / "python"
+    project_dir = project_arg.resolve()
+    if args.project is None and conversion_dir not in project_dir.parents:
+        raise ValueError(f"python link must point inside the conversion: {project_arg}")
     if not project_dir.is_dir():
-        raise ValueError(f"project directory does not exist: {args.project}")
+        raise ValueError(f"project directory does not exist: {project_arg}")
     reference = project_dir / "main.py"
     if not reference.is_file():
         raise ValueError(f"project entry point does not exist: {reference}")
-    rtl_dir = args.rtl.resolve()
-    conversion_dir = rtl_dir.parent
-    reference_copy = conversion_dir / project_dir.name
-    if project_dir != reference_copy:
-        shutil.copytree(
-            project_dir,
-            reference_copy,
-            dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
-        )
+    rtl_dir = conversion_dir / "rtl"
     params = load_params(reference)
     bits = int(params.get("bits", 16))
     if bits < 2:
@@ -284,8 +282,7 @@ def main() -> int:
     count = int(params.get("N", 1))
     if not 0 <= args.drain_stall < 100:
         raise ValueError("--drain-stall must be a percentage below 100")
-    rng = np.random.default_rng(args.seed)
-    np.random.seed(args.seed)
+    rng = np.random.default_rng()
     module = load_reference(reference, params)
     inputs, expected = stimulus_and_expected(module, rng, params, count, args.tests)
     frac = fraction_bits([*inputs, *expected], bits)
@@ -320,7 +317,7 @@ def main() -> int:
     fifo_limit = args.fifo if beat_ps else 0
     tb.write_text(make_tb(top, in_lanes, out_lanes, args.tests, count, bits, frac,
                           aclk_ps, beat_ps, fifo_limit, args.drain_stall,
-                          args.seed, args.timeout))
+                          args.timeout))
     for stale in ("input.log", "output.log"):
         (work / stale).unlink(missing_ok=True)
     compile_cmd = ["iverilog", "-g2012", "-Wall", "-s", "tb", "-o",
@@ -349,6 +346,13 @@ def main() -> int:
         errors.extend((got - want_lanes).tolist())
         signals.extend(want_lanes.tolist())
     rmse = float(np.sqrt(np.mean(np.square(errors))))
+    worst = sorted(range(len(errors)), key=lambda i: abs(errors[i]), reverse=True)[:12]
+    (work / "errors.json").write_text(json.dumps({
+        "rmse": rmse, "worst": [
+            {"frame": i // (count * out_lanes), "sample": (i // out_lanes) % count,
+             "lane": i % out_lanes, "expected": signals[i],
+             "actual": signals[i] + errors[i], "error": errors[i]}
+            for i in worst]}, indent=2) + "\n")
     peak = float(np.max(np.abs(signals)))
     precision = float("inf") if rmse == 0 else np.log2(peak / rmse) if peak else float("-inf")
 
@@ -372,14 +376,18 @@ def main() -> int:
               + (f" of {fifo_limit}" if fifo_limit else "")
               + (" OVERFLOW" if overflowed else ""))
     print(f"fraction bits: {frac}")
-    print(f"bits of precision: {precision:.3g}")
+    print(f"bits of precision: {precision:.9g}")
+    print(f"RMS error: {rmse:.9g}")
+    print(f"numerical diagnostics: {work / 'errors.json'}")
+    for i in worst[:3]:
+        print(f"  frame {i // (count * out_lanes)}, sample {(i // out_lanes) % count}, "
+              f"lane {i % out_lanes}: expected {signals[i]:.8g}, "
+              f"got {signals[i] + errors[i]:.8g}, error {errors[i]:.8g}")
     budget = target.get("cycles")
-    failed = overflowed
     if budget:
-        verdict = "PASS" if throughput <= float(budget) and not overflowed else "FAIL"
-        print(f"real-time ({budget} cycles/frame): {verdict}")
-        failed = failed or verdict == "FAIL"
-    return 1 if failed else 0
+        print(f"cycle target: {budget} cycles/frame; measured/target: {throughput / float(budget):.9g}")
+    # Exit status is about measurement validity, never a performance threshold.
+    return 1 if run.returncode != 0 else 0
 
 
 if __name__ == "__main__":

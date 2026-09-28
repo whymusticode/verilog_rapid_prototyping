@@ -1,3 +1,6 @@
-part: 5CEFA4F23C8
+part: xc7z010clg400-1
 bits: 20
 N: 1024
+target:
+  frequency: 200000000
+  cycles: 500

@@ -1,0 +1,6 @@
+part: xc7z010clg400-1
+bits: 17
+N: 64
+target:
+  frequency: 100000000
+  cycles: 128

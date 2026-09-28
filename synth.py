@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import shlex
@@ -27,6 +28,10 @@ VIVADO_PREFIXES = ("xc", "xa", "xq", "xck")
 # override them, and $VIVADO bypasses them with a directly runnable executable.
 VIVADO_SHELL = "/home/work/Projects/pluto/scripts/vivado-shell"
 VIVADO_SETUP = "/home/work/Projects/pluto/scripts/use-vivado"
+# The setup script selects one of several installed toolchains, so the version
+# is pinned rather than discovered: synthesis results are only comparable
+# between runs of the same Vivado.  $VIVADO_VERSION overrides it.
+VIVADO_VERSION = "2023.2"
 
 
 def find(pattern: str, text: str, default: str = "unknown") -> str:
@@ -47,14 +52,9 @@ def utilization(used: str, available: str) -> str:
     return f"{used} {available} {percent:.1f}%"
 
 
-def conversion_params(rtl_dir: Path) -> dict:
-    paths = sorted(rtl_dir.resolve().parent.glob("*/params.yaml"))
-    if not paths:
-        return {}
-    if len(paths) > 1:
-        locations = ", ".join(str(path) for path in paths)
-        raise ValueError(f"multiple parameter files found: {locations}")
-    return load_params(paths[0].with_name("main.py"))
+def conversion_params(conversion_dir: Path) -> dict:
+    reference = conversion_dir / "python" / "main.py"
+    return load_params(reference) if reference.is_file() else {}
 
 
 def choose_tool(requested: str, part: str) -> str:
@@ -93,6 +93,7 @@ def run(command: list[str], work: Path, limit: float, label: str,
         if isinstance(partial, bytes):
             partial = partial.decode(errors="replace")
         output = partial + (remaining or "")
+        (work / f"{label.lower()}.log").write_text(output)
         milestones = [line for line in output.splitlines()
                       if "Running Quartus" in line or "Processing started" in line
                       or "Command:" in line or "Error (" in line
@@ -104,6 +105,7 @@ def run(command: list[str], work: Path, limit: float, label: str,
             f"{label} exceeded the {limit:g}s evaluation limit "
             f"({elapsed:.1f}s); RTL is too expensive to compile"
         )
+    (work / f"{label.lower()}.log").write_text(output)
     if process.returncode:
         print("\n".join(output.splitlines()[-40:]), file=sys.stderr)
         if hint and "command not found" in output:
@@ -213,14 +215,18 @@ def vivado_command(arguments: list[str], work: Path) -> list[str]:
     # working directory, so the flow has to return to ours.
     script = [f"cd {shlex.quote(str(work))}"]
     if setup.is_file():
-        script.append(f"source {shlex.quote(str(setup))}")
+        # The setup script needs the version to source, and reports its own
+        # error when that one is not installed; stop there rather than falling
+        # through to a bare "vivado: command not found".
+        version = os.environ.get("VIVADO_VERSION", VIVADO_VERSION)
+        script.append(shlex.join(["source", str(setup), version]) + " || exit 2")
     script.append(shlex.join(["exec", "vivado", *arguments]))
     return [str(launcher), "-lc", "; ".join(script)]
 
 
 def vivado(files: list[Path], rtl_dir: Path, work: Path, top: str, part: str,
            period_ns: float, limit: float, started: float,
-           paths: int, implement: bool = False
+           paths: int, implement: bool = False, generics: dict | None = None
            ) -> tuple[str, str, str, list[dict], str]:
     sources = " ".join(shlex.quote(str(path)) for path in files)
     copy_memories(rtl_dir, work)
@@ -228,11 +234,12 @@ def vivado(files: list[Path], rtl_dir: Path, work: Path, top: str, part: str,
         f"create_clock -name aclk -period {period_ns:.3f} [get_ports aclk]\n")
     # Out-of-context synthesis: no I/O buffers are inserted, so the numbers
     # describe the module itself rather than a pin-limited wrapper.
+    generic_arg = " -generic {" + " ".join(f"{k}={v}" for k, v in generics.items()) + "}" if generics else ""
     (work / "rapid.tcl").write_text(f"""set_param general.maxThreads 4
 create_project -in_memory -part {part}
 read_verilog -sv [list {sources}]
 read_xdc rapid.xdc
-synth_design -top {top} -part {part} -mode out_of_context
+synth_design -top {top} -part {part} -mode out_of_context{generic_arg}
 {"opt_design" if implement else ""}
 {"place_design" if implement else ""}
 {"phys_opt_design" if implement else ""}
@@ -254,7 +261,8 @@ puts "VRP_DONE"
                                  "-source", "rapid.tcl"], work),
                  work, limit, "Vivado", started,
                  hint="the Vivado launcher started but no vivado executable was "
-                      "reachable through it; set $VIVADO to the full path")
+                      "reachable through it; set $VIVADO_VERSION to an installed "
+                      "toolchain or $VIVADO to the full path")
     if "VRP_DONE" not in output:
         print("\n".join(output.splitlines()[-40:]), file=sys.stderr)
         raise RuntimeError("Vivado synthesis did not finish")
@@ -296,8 +304,11 @@ def _resource(report: str, name: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("rtl", type=Path)
+    parser.add_argument("conversion", type=Path,
+                        help="conversion directory containing rtl/ and python/")
     parser.add_argument("--top")
+    parser.add_argument("--project", type=Path,
+                        help="override parameter project for independent final checks")
     parser.add_argument("--part", help="overrides the part in params.yaml")
     parser.add_argument("--tool", choices=("auto", "quartus", "vivado"), default="auto",
                         help="default: Vivado for Xilinx parts, Quartus otherwise")
@@ -310,25 +321,39 @@ def main() -> int:
     parser.add_argument("--implement", action="store_true",
                         help="place and route rather than estimate from synthesis "
                              "(Vivado only; slower but reports the real Fmax)")
+    parser.add_argument("--work", type=Path, help="retain synthesis scripts, reports and logs here")
     args = parser.parse_args()
-    rtl_dir = args.rtl.resolve()
+    conversion_dir = args.conversion.resolve()
+    rtl_dir = conversion_dir / "rtl"
     files = verilog_files(rtl_dir)
     top = infer_top(files, args.top)
-    params = conversion_params(args.rtl)
+    params = load_params(args.project.resolve() / "main.py") if args.project else conversion_params(conversion_dir)
     part = args.part or params.get("part")
     if not part:
-        raise ValueError("FPGA part is required: use --part or conversion_XXX/*/params.yaml")
+        raise ValueError("FPGA part is required: use --part or conversion/python/params.yaml")
     tool = choose_tool(args.tool, part)
     frequency = args.frequency or (params.get("target") or {}).get("frequency")
     period_ns = 1e9 / float(frequency) if frequency else DEFAULT_PERIOD_NS
     limit = args.timeout or DEFAULT_TIMEOUT[tool]
     started = time.perf_counter()
-    with tempfile.TemporaryDirectory(prefix=f"vrp-{tool}-") as name:
+    # Match the elaboration that was actually simulated, not arbitrary RTL defaults.
+    tb = conversion_dir / "IO" / "tb.sv"
+    generics = {}
+    if tb.exists():
+        text = tb.read_text()
+        for key in ("WIDTH", "FRAC", "N", "IN_LANES", "OUT_LANES"):
+            match = re.search(rf"localparam integer {key}\s*=\s*(\d+);", text)
+            if match:
+                generics[key] = int(match.group(1))
+    if args.work:
+        args.work.mkdir(parents=True, exist_ok=True)
+    with (contextlib.nullcontext(str(args.work.resolve())) if args.work else
+          tempfile.TemporaryDirectory(prefix=f"vrp-{tool}-")) as name:
         work = Path(name)
         if tool == "vivado":
             lut, dsp, fmax, critical, ram = vivado(files, rtl_dir, work, top, part,
                                                   period_ns, limit, started,
-                                                  args.paths, args.implement)
+                                                  args.paths, args.implement, generics)
         else:
             if args.implement:
                 raise ValueError("--implement is only supported for Vivado")
@@ -337,6 +362,8 @@ def main() -> int:
     elapsed = time.perf_counter() - started
     print(f"evaluation time: {elapsed:.1f}s")
     print(f"tool: {tool} ({part} @ {1000.0 / period_ns:.1f} MHz)")
+    print(f"timing stage: {'routed' if args.implement else 'synthesis estimate'}")
+    print(f"elaboration: {generics or 'RTL defaults (no prior simulation)'}")
     print(f"LUT: {lut}")
     print(f"DSP: {dsp}")
     print(f"RAM: {ram}")

@@ -87,6 +87,10 @@ def fraction_bits(values: list[np.ndarray], width: int) -> int:
     peak = max((float(np.max(np.abs(v))) for v in values if v.size), default=0.0)
     integer_bits = 0 if peak == 0 else max(0, math.ceil(math.log2(peak + np.finfo(float).eps)))
     frac = width - 1 - integer_bits
+    # A peak just below a power of two leaves integer_bits one too low, and
+    # rounding then lands one step past full scale. Give back a bit when it does.
+    while frac > 0 and round(peak * (1 << frac)) > (1 << (width - 1)) - 1:
+        frac -= 1
     if frac < 0:
         raise ValueError(f"{width} bits cannot represent observed magnitude {peak:g}")
     return frac
