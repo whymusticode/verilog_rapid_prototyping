@@ -1,0 +1,14 @@
+part: xc7z010clg225-1
+# Stream element formats: one input sample is complex 12-bit ADC codes (I, Q);
+# one output element is a bit. How many travel per AXI beat is the RTL's choice.
+input: {bits: 12, frac: 0, signed: true}
+output: {bits: 1, frac: 0, signed: false}
+sim_samples: 163840
+max_burst: 8192
+iterations_x2: 8
+approximate: 1
+time_budget_s: 60
+target:
+  frequency: 100000000
+  # A typical Pluto rate: 10 clock cycles per ADC sample at 100 MHz.
+  sample_rate: 10000000

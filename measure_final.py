@@ -24,13 +24,8 @@ def main():
         usage = codex_run.Usage(0, [1, 5, .1])
         usage.value = {k: saved[k] for k in ("input_tokens", "cached_input_tokens", "output_tokens", "weighted_tokens")}
         recorder = evald.Recorder(project, conversion / "rtl", usage)
-        # Original sim also establishes the elaboration parameters for synthesis.
+        # Original sim also regenerates IO/tb.sv, which synthesis elaborates from.
         sim = recorder.evaluate("sim", [], "original")
-        archive = conversion / sim["record"]["archive"]
-        import shutil
-        if (archive / "IO" / "tb.sv").exists():
-            (conversion / "IO").mkdir(exist_ok=True)
-            shutil.copy2(archive / "IO" / "tb.sv", conversion / "IO" / "tb.sv")
         hardware = recorder.evaluate("synth", ["--implement", "--paths", "3"], "original")
         last = recorder.evaluate("sim", ["--drain-stall", "20"], "original")
         report = {"sim": sim["record"], "routed": hardware["record"], "backpressure": last["record"]}

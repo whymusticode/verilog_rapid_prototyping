@@ -1,6 +1,10 @@
 part: xc7z010clg400-1
-bits: 20
 N: 1024
+# Stream element formats (complex: real and imaginary lanes alike).
+input: {bits: 20, frac: 18, signed: true}
+output: {bits: 20, frac: 9, signed: true}
+sim_samples: 10240
 target:
   frequency: 200000000
-  cycles: 500
+  # 500 cycles per 1024-sample frame at 200 MHz.
+  sample_rate: 409600000

@@ -1,14 +1,15 @@
-# The rapid-prototyping harness uses N as the AXI frame length.
-# One frame is one critically sampled PFB transform.
+# N is the channel count: one critically sampled PFB transform per N samples.
 part: xc7z010clg400-1
-bits: 16
+# Stream element formats; one sample is a complex sample from each receiver.
+input: {bits: 16, frac: 16, signed: true}
+output: {bits: 16, frac: 17, signed: true}
 N: 64
+sim_samples: 640
 rx_count: 2
 taps_per_phase: 4
 coefficient_bits: 18
 kaiser_beta: 7.8562
 target:
-  # One PFB frame arrives every 64 / 25.6 MS/s = 2.5 us.  The implementation
-  # must therefore sustain one complete dual-RX transform in this budget.
-  frequency: 200000000
-  cycles: 500
+  # 25.6 MS/s per receiver: one 64-sample PFB transform every 2.5 us.
+  frequency: 100000000
+  sample_rate: 25600000

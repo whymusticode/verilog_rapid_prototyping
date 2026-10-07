@@ -46,7 +46,7 @@ def main():
         writer.writerows(rows)
     projects = list(dict.fromkeys(row["project"] for row in rows))
     metrics = [("precision_bits", "Precision bits ↑"),
-               ("cycles_per_frame", "Cycles/frame ↓"), ("fmax_mhz", "Fmax MHz ↑"),
+               ("cycles_per_sample", "Cycles/sample ↓"), ("fmax_mhz", "Fmax MHz ↑"),
                ("lut", "LUTs ↓"), ("dsp", "DSPs ↓"), ("ram", "RAM tiles ↓")]
     fig, axes = plt.subplots(len(projects), len(metrics), figsize=(21, 3.5 * len(projects)), squeeze=False)
     colors = plt.get_cmap("tab10")

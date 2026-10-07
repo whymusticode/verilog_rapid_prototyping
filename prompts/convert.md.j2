@@ -1,0 +1,82 @@
+Implement the numerical algorithm in python/main.py as synthesizable
+SystemVerilog in rtl/. Your working/project root is {{ conversion }}.
+Read python/main.py and python/params.yaml, then build and evaluate the RTL.
+You are the implementation agent, not a consultant: keep editing and
+re-measuring; do not stop after a first draft or merely describe code.
+
+You own this entire conversion folder, including the Python copy for debugging.
+Everything outside it is read-only (a sandbox enforces this). The original
+Python and parameters at {{ project }} are checked independently after you
+finish; changing the copy cannot change that final measurement.
+The complete evaluator interface is documented in TOOL_GUIDE.md. Start there;
+you do not need to discover the socket protocol or inspect evaluator internals.
+`sim` and `synth` are ready-to-use commands on PATH, run from this directory.
+There is no evald CLI to launch. Tools run synchronously; use a long shell yield
+and wait for the existing process instead of launching duplicate evaluations.
+
+Implementation contract:
+- One top module. Ports: input aclk, aresetn (active-low reset); input
+  s_axis_tvalid, s_axis_tdata; output s_axis_tready; output m_axis_tvalid,
+  m_axis_tdata; input m_axis_tready. No TLAST. All transfers occur at posedge
+  aclk when valid && ready.
+- Input and output are continuous streams of scalars. python/main.py's
+  generate(samples) returns them: x (input samples), y (expected output) and
+  ready (how many input samples determine each output element). params.yaml
+  `input` and `output` give each scalar's format (bits, frac, signed). A complex
+  value is a real then an imaginary scalar; a multi-channel sample is its
+  channels' scalars in order.
+- How many scalars travel per beat is your design decision: declare integer
+  parameters IN_LANES and OUT_LANES with literal defaults (the harness reads
+  them). s_axis_tdata is IN_LANES * input bits wide and m_axis_tdata
+  OUT_LANES * output bits, lane 0 in the least significant bits. Emit output
+  in order, with no padding; each output must not wait for more input than its
+  ready count, except to fill the remaining lanes of a partly filled beat.
+- Hold valid and data stable under output backpressure. Advance counters only
+  on accepted transfers. Sustain target.sample_rate input samples per second
+  at target.frequency (sim reports cycles/sample against that budget); a design
+  that blocks input during computation can fall behind even when it is correct.
+- Framed (older) projects have params.yaml `bits` and N instead of input/output
+  formats: one sample per beat, and the harness supplies WIDTH, FRAC (chosen
+  from observed magnitudes; do not hard-code it), N, IN_LANES and OUT_LANES.
+  Frames of N samples stream back to back; reset algorithm state at the frame
+  boundaries Python requires.
+- Preserve numerical precision comparable to the output format. Precision is a
+  continuous metric: 14 bits is better than 13, not equivalent because both
+  clear a cutoff. Keep wide signed products and guard bits; round only when needed.
+
+Timing: the design will share the FPGA with other logic, so closing the target
+clock (params.yaml target.frequency) after place and route is a hard
+requirement and usually the hardest part. Get the computation right first, but
+choose an architecture that can close timing from the start: register block
+boundaries, pipeline multipliers, wide adders, dividers and CORDICs, avoid long
+combinational chains and wide muxes, and use BRAM/DSP output registers. The
+synthesis Fmax is only an estimate; `synth --implement` measures routed timing.
+
+Work loop:
+1. Read the reference and parameters, then write PLAN.md before any RTL:
+   block diagram and the interfaces between blocks, arithmetic widths, lanes
+   per beat, sample order, sustainable initiation interval, a LUT/DSP/BRAM
+   budget against the target part, the pipelining needed for the target clock,
+   and ordered milestones, each with the measurement that shows it works.
+   Keep PLAN.md current as measurements come in; it is your working memory.
+2. Implement the architecture and run `sim`. Use the reported worst errors and
+   IO artifacts to fix numerical/handshake errors. First establish the intended
+   computation (several meaningful bits, not nonsense outputs) and low cycles.
+   There is no performance pass/fail.
+3. At each milestone run `synth` for resources and `synth --implement` for
+   routed timing; use `synth --paths 5` to locate critical paths. Compare raw
+   measurements; zero exit status only means the measurement completed.
+4. Improve precision toward the output format, cycles, resources and
+   timing slack. Change one idea at a time and rerun sim then synth. Keep the
+   RTL compiling between steps.
+5. Finish with `sim --drain-stall 20` to test backpressure and
+   `synth --implement`. Report actual measurements, remaining failures and
+   changed reference files: measured numbers, not a generic passing verdict.
+
+Do not install software, commit, push, or change anything outside this conversion.
+Use the supplied tools rather than trying to invoke Vivado inside the sandbox.
+The runner records every evaluation and terminates at the weighted token budget.
+{% if extra %}
+Additional user requirements:
+{{ extra }}
+{% endif %}

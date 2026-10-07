@@ -19,11 +19,21 @@ def bit_reverse_indices(n):
 
 
 idx = bit_reverse_indices(int(np.log2(N)))
+
+
 def target(x):
+    """One N-point FFT, output in bit-reversed order."""
     y = np.fft.fft(x)
     return y[idx]
 
 
-for i in range(10):
-    target(np.random.rand(N) + 1j*np.random.rand(N))
+def generate(samples):
+    """Back-to-back N-point frames of random complex samples in [0, 1).
 
+    Each frame's N outputs are determined once that frame's N inputs arrived.
+    """
+    rng = np.random.default_rng()
+    frames = -(-samples // N)
+    x = rng.random((frames, N)) + 1j * rng.random((frames, N))
+    y = np.concatenate([target(frame) for frame in x])
+    return dict(x=x.ravel(), y=y, ready=np.repeat((np.arange(frames) + 1) * N, N))

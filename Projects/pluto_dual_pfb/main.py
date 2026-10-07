@@ -1,9 +1,10 @@
 """Reference entry point for a dual-RX, 64-way Pluto PFB candidate.
 
-``target(x)`` is intentionally the thin wrapper expected by ``sim.py``.
-It is stateless per invocation because each harness vector is an independent
-reset-to-output transaction.  Use ``PolyphaseChannelizer.process`` directly
-when checking continuous streaming frames.
+``generate(samples)`` is the stream sim.py measures: one input sample is a
+complex sample from each of the two receivers; the channelizer runs
+continuously from one reset, so each 64-sample block's 64 x 2 channel outputs
+are determined once that block has arrived. ``target(x)`` is one block after
+reset, for interactive use.
 """
 
 from pathlib import Path
@@ -29,11 +30,6 @@ N = int(params["N"])
 RX_COUNT = int(params["rx_count"])
 TAPS_PER_PHASE = int(params["taps_per_phase"])
 KAISER_BETA = float(params["kaiser_beta"])
-TARGET_FREQUENCY = int(params["target"]["frequency"])
-TARGET_CYCLES = int(params["target"]["cycles"])
-
-if TARGET_FREQUENCY <= 0 or TARGET_CYCLES <= 0:
-    raise ValueError("target.frequency and target.cycles must both be positive")
 
 
 def _frame(x: np.ndarray) -> np.ndarray:
@@ -52,23 +48,11 @@ def target(x: np.ndarray) -> np.ndarray:
     return pfb.process(_frame(x))
 
 
-def stream(frames: list[np.ndarray]) -> list[np.ndarray]:
-    """Reference for frames streamed back to back after a single reset.
-
-    A polyphase filter bank carries ``taps_per_phase - 1`` frames of FIR
-    history, so hardware that runs continuously does not reproduce
-    ``target`` for any frame but the first.  The streaming harness compares
-    against this instead: one channelizer, reset once, fed every frame in
-    order, exactly as the RTL sees them.
-    """
+def generate(samples: int) -> dict:
+    """Random dual-RX samples in +-0.25 (each of I, Q) and the channelizer output."""
+    rng = np.random.default_rng()
+    frames = -(-samples // N)
+    x = rng.uniform(-0.25, 0.25, (frames * N, RX_COUNT)) + 1j * rng.uniform(-0.25, 0.25, (frames * N, RX_COUNT))
     pfb = PolyphaseChannelizer(N, TAPS_PER_PHASE, KAISER_BETA)
-    return [pfb.process(_frame(frame)) for frame in frames]
-
-
-def inputs(rng: np.random.Generator, count: int) -> list[np.ndarray]:
-    """Generate independent dual-RX complex frame transactions for sim.py."""
-    return [
-        rng.uniform(-0.25, 0.25, (N, RX_COUNT))
-        + 1j * rng.uniform(-0.25, 0.25, (N, RX_COUNT))
-        for _ in range(count)
-    ]
+    y = np.concatenate([pfb.process(x[f * N:(f + 1) * N]) for f in range(frames)])
+    return dict(x=x, y=y, ready=np.repeat((np.arange(frames) + 1) * N, N))

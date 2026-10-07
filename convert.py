@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use Qwen Code, Codex, or Whale to convert Python to SystemVerilog RTL."""
+"""Use Qwen Code, Codex, Claude Code, or Whale to convert Python to SystemVerilog RTL."""
 
 from __future__ import annotations
 
@@ -17,13 +17,16 @@ import subprocess
 import sys
 import tempfile
 import threading
-import tomllib
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
 
-import evald
+import jinja2
+
+import claude_run
 import codex_run
+import evald
+import model
 
 
 ROOT = Path(__file__).resolve().parent
@@ -40,13 +43,32 @@ SYSTEM_READ = ("/nix/store", "/run/current-system", "/bin", "/usr",
                "/etc/nsswitch.conf", "/etc/localtime", "/etc/ssl",
                "/etc/static", "/etc/pki")
 SANDBOX_PATH = "/run/current-system/sw/bin"
+# Harness sources archived with a batch; its runs execute the archived convert.py.
+SOURCES = ("convert.py", "model.py", "codex_run.py", "claude_run.py", "evald.py", "xilinx.py",
+           "prompts/convert.md.j2", "prompts/tool_guide.md", *EVALUATORS)
+# Written into each conversion before the agent starts; `--resume DIR` reads it.
+SESSION = "session.json"
+RESUMABLE = ("codex", "claude")
+# Per-run records moved aside when a session is resumed, so each run keeps its own.
+RUN_RECORDS = ("run.json", "agent_events.jsonl", "tokens.jsonl", "convert.log",
+               "reference_check.log")
+RESUME_PROMPT = ("Your previous run in this directory ended ({status}). Continue the "
+                 "conversion from where you left off; the files are as you left them.")
+RETARGET_PROMPT = ("Your previous run in this directory ended ({status}). The reference has "
+                   "changed: python/ now links to {name}/, a fresh copy of {project}, and the "
+                   "final check measures your RTL against it. The previous reference copy is "
+                   "still at {previous}/. Your RTL, PLAN.md and other files are as you left "
+                   "them. Re-read python/main.py, python/params.yaml and TOOL_GUIDE.md, update "
+                   "PLAN.md for the new reference, then adapt and extend your existing design "
+                   "to it, reusing what still applies.")
 
 
 def arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-m", "--model", required=True, metavar="HARNESS[:MODEL]",
-                        help="qwen, codex, or whale, optionally followed by :model-id")
-    source = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument("-m", "--model", metavar="HARNESS[:MODEL]",
+                        help="qwen, codex, claude, or whale, optionally followed by :model-id "
+                             "(required unless resuming a session)")
+    source = parser.add_mutually_exclusive_group()
     source.add_argument("-i", "--input", type=Path,
                         help="project containing main.py and params.yaml")
     source.add_argument("-t", "--test", type=Path, metavar="FILE",
@@ -58,22 +80,29 @@ def arguments(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Qwen model ID or alias (default: Qwen CLI configuration)")
     parser.add_argument("--extra-prompt", default="", metavar="TEXT",
                         help="additional conversion requirements")
-    parser.add_argument("--token-budget", type=float, default=150000,
-                        help="per-project weighted Codex token limit (default: 150000; 0 disables)")
+    parser.add_argument("--token-budget", type=float, default=1000000,
+                        help="per-project weighted Codex/Claude token limit (default: 1000000; 0 disables)")
     parser.add_argument("--token-weights", type=float, nargs=3, default=[1, 5, 0.1],
                         metavar=("INPUT", "OUTPUT", "CACHED"),
                         help="weights for uncached input, output and cached input (default: 1 5 0.1)")
-    parser.add_argument("--prompt-version", choices=("baseline", "v2"), default="baseline")
+    parser.add_argument("--reasoning-effort", choices=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+                        help="Codex or Claude reasoning effort; omitted uses the harness configuration")
     parser.add_argument("--qwen", default=os.environ.get("QWEN", "qwen"),
                         help="Qwen executable (default: $QWEN or qwen)")
     parser.add_argument("--codex", default=os.environ.get("CODEX", "codex"),
                         help="Codex executable (default: $CODEX or codex)")
+    parser.add_argument("--claude", default=os.environ.get("CLAUDE", "claude"),
+                        help="Claude Code executable (default: $CLAUDE or claude)")
     parser.add_argument("--whale", default=os.environ.get("WHALE", "whale"),
                         help="Whale executable (default: $WHALE or whale)")
+    parser.add_argument("--resume", type=Path, metavar="DIR",
+                        help=f"a conversion directory with {SESSION}: continue its Codex/Claude "
+                             "session in place")
     parser.add_argument("--allow-write", type=Path, action="append", default=[],
                         metavar="PATH", help="additional writable sandbox path")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the command and prompt without invoking the agent")
+    parser.set_defaults(session=None, retarget_from=None)
     return parser.parse_args(argv)
 
 
@@ -117,14 +146,16 @@ def validate(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     return project, output, conversion
 
 
-def prepare_layout(project: Path, conversion: Path) -> None:
-    """Snapshot the reference once, before the agent or evaluators run."""
+def prepare_layout(project: Path, conversion: Path, retarget: bool = False) -> None:
+    """Snapshot the reference once, before the agent or evaluators run.
+
+    ``retarget`` moves an existing conversion's python link to a new reference."""
     copied = conversion / project.name
     alias = conversion / "python"
     if copied.is_symlink() or (copied.exists() and not copied.is_dir()):
         raise ValueError(f"reference copy is not a directory: {copied}")
     if project.name != "python" and (alias.exists() or alias.is_symlink()):
-        if not alias.is_symlink() or alias.resolve() != copied:
+        if not alias.is_symlink() or (alias.resolve() != copied and not retarget):
             raise ValueError(f"python link already points elsewhere: {alias}")
     rtl = conversion / "rtl"
     if rtl.is_symlink() or (rtl.exists() and not rtl.is_dir()):
@@ -132,294 +163,78 @@ def prepare_layout(project: Path, conversion: Path) -> None:
     conversion.mkdir(parents=True, exist_ok=True)
     shutil.copytree(project, copied, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
+    if project.name != "python" and alias.is_symlink() and alias.resolve() != copied:
+        alias.unlink()
     if project.name != "python" and not alias.is_symlink():
         alias.symlink_to(project.name, target_is_directory=True)
     rtl.mkdir(exist_ok=True)
 
 
-def make_prompt(project: Path, output: Path, conversion: Path,
-                extra: str = "", version: str = "baseline") -> str:
-    copied = conversion / "python"
-    params = copied / "params.yaml"
-    extra_section = f"\nAdditional user requirements:\n{extra.strip()}\n" if extra.strip() else ""
-    if version == "v2":
-        return f"""Implement the numerical algorithm in python/main.py as synthesizable
-SystemVerilog in rtl/. Your working/project root is {conversion}.
-Read python/main.py and python/params.yaml, then build and evaluate the RTL.
-You own this entire conversion folder, including the Python copy for debugging.
-The original Python and parameters are checked independently after you finish;
-changing the copy cannot change that final acceptance test.
-
-The complete evaluator interface is documented in TOOL_GUIDE.md. Start there;
-you do not need to discover the socket protocol or inspect evaluator internals.
-`sim` and `synth` are ready-to-use commands on PATH, run from this directory.
-There is no evald CLI to launch. Tools run synchronously; use a long shell yield
-and wait for the existing process instead of launching duplicate evaluations.
-
-Implementation contract:
-- One top module; parameters WIDTH, FRAC, N, IN_LANES, OUT_LANES.
-- Ports: input aclk, aresetn (active-low reset); input s_axis_tvalid,
-  s_axis_tlast, [IN_LANES*WIDTH-1:0] s_axis_tdata; output s_axis_tready;
-  output m_axis_tvalid, m_axis_tlast, [OUT_LANES*WIDTH-1:0] m_axis_tdata;
-  input m_axis_tready. All transfers occur at posedge aclk when valid && ready.
-- Lane 0 is the least-significant WIDTH bits. Each lane is signed two's
-  complement with FRAC fractional bits. Complex samples pack real then imaginary.
-- N is the frame size in params.yaml, not necessarily the algorithm's inner
-  block size. TLAST must mark every Nth accepted output sample. Frames stream
-  back to back. Reset algorithm state at the frame boundaries required by Python.
-- Hold valid, data and last stable under output backpressure. Advance counters
-  only on accepted transfers. Sustain N*target.frequency/target.cycles input
-  samples per second; a design that blocks input throughout computation can
-  violate the budget even when a single isolated frame works.
-- Preserve numerical precision comparable to params.yaml bits. Precision is a
-  continuous metric: 14 bits is better than 13, not equivalent because both
-  clear a cutoff. Keep wide signed products and guard bits; round only when needed.
-  FRAC is selected from observed input/output magnitudes and can vary between
-  runs. Do not hard-code it or use random stimulus as constants.
-
-Work loop:
-1. Read the reference and parameters. Work out the arithmetic widths, sample
-   order, frame boundaries and sustainable initiation interval before coding.
-2. Implement a simple resource-conscious architecture and run `sim`.
-   Use the reported worst errors and IO artifacts to fix numerical/handshake
-   errors. First establish the intended computation (several meaningful bits,
-   not nonsense outputs) and low cycles. There is no performance pass/fail.
-3. Improve precision toward the params.yaml bit width and reduce cycles/resources.
-   Run `synth` for resource counts and estimated Fmax. Compare raw measurements;
-   zero exit status only means the measurement completed, not that it is good.
-4. Make at least one measured architecture/precision/cycle/resource improvement
-   if a bottleneck remains. Change one idea at a time and rerun sim then synth.
-   Timing closure is normally LAST: once computation and cycles are sound, use
-   `synth --paths 5` to locate critical paths and revise pipelining.
-5. Finish with `sim --drain-stall 20` to test backpressure and `synth --implement`
-   for routed Fmax. Report actual measurements, remaining failures and changed
-   reference files. Report measured numbers, not a generic passing verdict.
-
-Do not install software, commit, push, or change anything outside this conversion.
-Use the supplied tools rather than trying to invoke Vivado inside the sandbox.
-The runner records every evaluation and terminates at the weighted token budget.
-{extra_section}"""
-    return f"""Convert the Python numerical reference in {copied} into production-quality,
-synthesizable SystemVerilog in {output}.
-
-You are the implementation agent, not a consultant. Inspect {copied / 'main.py'} and
-{params}, create the RTL, run the supplied evaluators, diagnose failures, and keep
-editing and retesting to improve the measured implementation. Do not merely
-describe code or stop after the first draft.
-
-Hard boundaries (enforced by a sandbox; violations fail as I/O errors):
-- Treat everything outside {conversion} as read-only. The original source at
-  {project} is read-only; never edit evaluator scripts, repository files,
-  configuration, or git state.
-- You may inspect and edit the copied Python under {copied}, RTL under {output},
-  and generated simulation artifacts under {conversion / 'IO'}.
-- Do not commit, push, install software, or modify RTL_examples.
-
-Required RTL contract:
-- Synthesizable SystemVerilog (.sv or .v), with exactly one inferable top module.
-- The top module must implement the AXI4-Stream interface expected by sim.py and
-  accept parameters WIDTH, FRAC, N, IN_LANES, and OUT_LANES.
-- Obey TVALID/TREADY backpressure, and assert TLAST on every Nth output beat:
-  sim streams several N-beat frames back to back, so TLAST marks each frame
-  boundary rather than the end of the stream. Implement the
-  requested computation rather than special-casing any particular input; the
-  stimulus is random and regenerated per run. Inspect generated IO files when
-  they help debugging; do not hard-code their contents.
-- Use fixed-point arithmetic appropriate for params.yaml and the Python oracle.
-
-Evaluation loop (run these exact commands; they are on your PATH):
-  sim
-  synth
-
-First establish the intended computation and low cycle count. Improve numerical
-precision toward params.yaml bits and reduce FPGA resources and cycles. Timing
-closure is normally the last optimization step. Compare actual numerical metrics,
-not performance pass/fail thresholds. Prefer efficient pipelining, memories, and
-DSP blocks over enormous combinational or fully unrolled structures. Re-run both
-evaluators after meaningful changes; their printed metrics are the ground truth.
-If an evaluator cannot obtain a measurement, use its error as feedback and continue.
-The `sim` command tests against the Python copy in this conversion. After you
-finish, the runner also checks the final RTL against the original source.
-
-Finish only with a short report of the final simulation and synthesis metrics and
-the files created or changed in {conversion}.{extra_section}"""
-
-def qwen_command(args: argparse.Namespace, prompt: str) -> list[str]:
-    command = [args.qwen, "-p", prompt, "--approval-mode", "yolo",
-               "--output-format", "text",
-               "--include-directories", str(args.input.resolve()),
-               "--include-directories", str(ROOT)]
-    model = args.model.partition(":")[2] or args.qwen_model
-    if model:
-        command.extend(("--model", model))
-    return command
+def load_session(args: argparse.Namespace) -> None:
+    """Point the arguments at the conversion and agent session ``--resume`` names."""
+    if not (args.resume / SESSION).is_file():
+        raise ValueError(f"--resume needs a conversion directory with {SESSION}: {args.resume}")
+    saved = json.loads((args.resume / SESSION).read_text())
+    if args.test:
+        raise ValueError("resuming a session continues one conversion; it cannot be combined with -t")
+    if not saved.get("session_id"):
+        raise ValueError(f"{args.resume / SESSION} records no session id; the agent never started")
+    conversion = args.resume.resolve()
+    if args.output and args.output.resolve() != conversion:
+        raise ValueError("a resumed session continues in its own directory; omit -o")
+    # A different -i retargets the session: the agent keeps its work and memory
+    # but continues against the new reference.
+    project = args.input.resolve() if args.input else Path(saved["input"])
+    args.retarget_from = Path(saved["input"]) if project != Path(saved["input"]) else None
+    args.model = args.model or saved["model"]
+    if args.model.partition(":")[0] != saved["harness"]:
+        raise ValueError(f"session {saved['session_id']} belongs to {saved['harness']}, not {args.model}")
+    if args.reasoning_effort is None:
+        args.reasoning_effort = saved.get("reasoning_effort")
+    args.input, args.output, args.session = project, conversion, saved
 
 
-def codex_command(args: argparse.Namespace, prompt: str, conversion: Path) -> list[str]:
-    command = [args.codex, "exec", "--dangerously-bypass-approvals-and-sandbox",
-               "--skip-git-repo-check", "--ephemeral", "-C", str(conversion)]
-    model = args.model.partition(":")[2]
-    if model:
-        command.extend(("--model", model))
-    return [*command, prompt]
-
-
-def whale_command(args: argparse.Namespace, prompt: str) -> list[str]:
-    command = [args.whale, "exec", "--dangerously-skip-permissions"]
-    model = args.model.partition(":")[2]
-    if model:
-        command.extend(("--model", model))
-    return [*command, prompt]
-
-
-def codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser().resolve()
-
-
-def whale_home() -> Path:
-    return Path(os.environ.get("WHALE_HOME", Path.home() / ".whale")).expanduser().resolve()
-
-
-def read_json(path: Path) -> dict:
+def read_run(conversion: Path) -> dict:
     try:
-        value = json.loads(path.read_text())
-        return value if isinstance(value, dict) else {}
+        return json.loads((conversion / "run.json").read_text())
     except (OSError, ValueError):
         return {}
 
 
-def read_toml(path: Path) -> dict:
-    try:
-        return tomllib.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
+def save_session(conversion: Path, record: dict) -> None:
+    (conversion / SESSION).write_text(json.dumps(record, indent=2) + "\n")
 
 
-def public_settings(value: object) -> object:
-    """Keep configuration useful for comparisons without recording credentials."""
-    if isinstance(value, dict):
-        return {key: public_settings(item) for key, item in value.items()
-                if isinstance(key, str) and not re.search(
-                    r"key|token|secret|password|credential|authorization|auth", key,
-                    re.IGNORECASE)}
-    if isinstance(value, list):
-        return [public_settings(item) for item in value]
-    return value
+def archive_run(conversion: Path) -> Path:
+    """Move the stopped run's records aside before the resumed run writes its own."""
+    parent = conversion / "previous_runs"
+    parent.mkdir(exist_ok=True)
+    target = parent / f"{len(list(parent.iterdir())) + 1:02d}"
+    target.mkdir()
+    for name in RUN_RECORDS:
+        if (conversion / name).is_file():
+            shutil.move(conversion / name, target / name)
+    return target
 
 
-def public_url(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = urlsplit(value)
-        port = parsed.port
-    except ValueError:
-        return None
-    if not parsed.hostname:
-        return None
-    host = parsed.hostname
-    if ":" in host:
-        host = f"[{host}]"
-    if port:
-        host += f":{port}"
-    return urlunsplit((parsed.scheme, host, parsed.path, "", ""))
+def make_prompt(project: Path, conversion: Path, extra: str = "") -> str:
+    """Render prompts/convert.md.j2 for one conversion."""
+    environment = jinja2.Environment(loader=jinja2.FileSystemLoader(ROOT / "prompts"),
+                                     undefined=jinja2.StrictUndefined, keep_trailing_newline=True)
+    return environment.get_template("convert.md.j2").render(
+        project=project, conversion=conversion, extra=extra.strip())
 
 
-def cli_version(executable: str) -> str | None:
-    try:
-        result = subprocess.run([executable, "--version"], capture_output=True,
-                                text=True, timeout=5, check=True)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return None
-    return result.stdout.strip().splitlines()[0] if result.stdout.strip() else None
-
-
-def codex_catalog(executable: str) -> tuple[dict, str]:
-    try:
-        result = subprocess.run([executable, "debug", "models"], capture_output=True,
-                                text=True, timeout=10, check=True)
-        catalog = json.loads(result.stdout)
-        if isinstance(catalog, dict) and isinstance(catalog.get("models"), list):
-            return catalog, "codex debug models"
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
-            ValueError):
-        pass
-    cached = read_json(codex_home() / "models_cache.json")
-    return cached, "Codex models_cache.json" if cached else "unavailable"
-
-
-def model_info(args: argparse.Namespace, projects: list[Path]) -> dict:
-    """Snapshot non-secret model and harness settings for a batch experiment."""
-    harness, _, requested = args.model.partition(":")
-    info = {"model": requested or None, "harness": harness}
-    if harness == "codex":
-        config = read_toml(codex_home() / "config.toml")
-        active_config = dict(config)
-        profiles = config.get("profiles")
-        profile = config.get("profile")
-        if isinstance(profiles, dict) and isinstance(profile, str):
-            selected_profile = profiles.get(profile)
-            if isinstance(selected_profile, dict):
-                active_config.update(selected_profile)
-        catalog, source = codex_catalog(args.codex)
-        models = [item for item in catalog.get("models", [])
-                  if isinstance(item, dict) and isinstance(item.get("slug"), str)]
-        selected = requested or active_config.get("model")
-        if not selected:
-            visible = [item for item in models if item.get("visibility") == "list"]
-            selected = min(visible, key=lambda item: item.get("priority", 9999)).get("slug") if visible else None
-        info["model"] = selected
-        info["cli_version"] = cli_version(args.codex)
-        info["catalog_source"] = source
-        for key in ("model_reasoning_effort", "model_verbosity", "service_tier",
-                    "model_provider", "profile"):
-            if isinstance(active_config.get(key), (str, int, float, bool)):
-                info[f"configured_{key}"] = active_config[key]
-        entry = next((item for item in models if item["slug"] == selected), None)
-        if entry:
-            # These are prompt/onboarding text, not adjustable model settings.
-            excluded = {"slug", "base_instructions", "model_messages",
-                        "availability_nux"}
-            info.update((key, value) for key, value in entry.items()
-                        if key not in excluded)
-    elif harness == "qwen":
-        config = read_json(Path.home() / ".qwen" / "settings.json")
-        configured = config.get("model")
-        info["model"] = requested or args.qwen_model or (
-            configured.get("name") if isinstance(configured, dict) else None)
-        info["cli_version"] = cli_version(args.qwen)
-        if isinstance(configured, dict):
-            info["configured_model_settings"] = public_settings(configured)
-    else:
-        config = read_toml(whale_home() / "config.toml")
-        info["model"] = requested or config.get("model") or "deepseek-v4-flash"
-        info["cli_version"] = cli_version(args.whale)
-        for key in ("reasoning_effort", "thinking_enabled"):
-            if key in config:
-                info[key] = config[key]
-        providers = config.get("providers")
-        provider = providers.get("deepseek", {}) if isinstance(providers, dict) else {}
-        if isinstance(provider, dict):
-            for key in ("api", "web_search"):
-                if key in provider:
-                    info[key] = provider[key]
-        if os.environ.get("WHALE_API"):
-            info["api"] = os.environ["WHALE_API"]
-        endpoint = config.get("api")
-        base_url = os.environ.get("DEEPSEEK_BASE_URL") or (
-            endpoint.get("base_url") if isinstance(endpoint, dict) else None)
-        if url := public_url(base_url):
-            info["api_base_url"] = url
+def batch_info(args: argparse.Namespace, projects: list[Path]) -> dict:
+    """Model settings plus everything else that defines a batch experiment."""
+    info = model.settings(args)
     info["test_file"] = str(args.test)
     info["token_budget"] = args.token_budget
     info["token_weights"] = dict(zip(("uncached_input", "output", "cached_input"), args.token_weights))
-    info["prompt_version"] = args.prompt_version
-    info["codex_transport"] = "app-server" if harness == "codex" else None
     info["projects"] = [str(project) for project in projects]
     info["captured_at_utc"] = datetime.now(timezone.utc).isoformat()
     info["harness_sources_sha256"] = {
-        name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-        for name in ("convert.py", "codex_run.py", "evald.py", *EVALUATORS)}
+        name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in SOURCES}
     return info
 
 
@@ -438,39 +253,11 @@ def display_command(command: list[str], prompt: str) -> str:
     for index, part in enumerate(command):
         if part == prompt:
             shown.append("<PROMPT>")
-        elif index >= 2 and command[index - 2:index] == ["--setenv", "DEEPSEEK_API_KEY"]:
+        elif index >= 2 and command[index - 2] == "--setenv" and command[index - 1] in model.SECRET_ENV:
             shown.append("<REDACTED>")
         else:
             shown.append(part)
     return shlex.join(shown)
-
-
-def complete_models(prefix: str) -> None:
-    """Offer the visible models in Codex's /model catalog."""
-    if prefix in ("", "qwen"):
-        print("qwen")
-    if "whale".startswith(prefix):
-        print("whale")
-    if not prefix.startswith("codex:") and "codex:".startswith(prefix):
-        print("codex:")
-    if not prefix.startswith("codex:"):
-        return
-    try:
-        result = subprocess.run(
-            [os.environ.get("CODEX", "codex"), "debug", "models"],
-            capture_output=True, text=True, timeout=5, check=True)
-        catalog = json.loads(result.stdout)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
-            ValueError):
-        try:
-            catalog = json.loads((codex_home() / "models_cache.json").read_text())
-        except (OSError, ValueError):
-            return
-    for model in catalog.get("models", []):
-        if isinstance(model, dict) and model.get("visibility") == "list":
-            slug = model.get("slug")
-            if isinstance(slug, str) and f"codex:{slug}".startswith(prefix):
-                print(f"codex:{slug}")
 
 
 def workspace(conversion: Path) -> list[Path]:
@@ -482,8 +269,8 @@ def sandbox_command(command: list[str], project: Path, conversion: Path,
                     writable: list[Path], service: Path, stubs: Path,
                     extra_write: list[Path], harness: str) -> list[str]:
     """Hide the host: a minimal environment, reads limited to the input project,
-    writes limited to the conversion directory, and evaluators reachable as
-    two stub commands that talk to the service on ``service``."""
+    writes limited to the conversion directory, and the evaluators and Xilinx
+    tools reachable as stub commands that talk to the service on ``service``."""
     bwrap = shutil.which("bwrap")
     if not bwrap:
         raise RuntimeError("bubblewrap (bwrap) is required to run the agent safely")
@@ -515,23 +302,7 @@ def sandbox_command(command: list[str], project: Path, conversion: Path,
     # service directory holds only the socket; connecting to it needs write.
     for path in [*writable, service, *(path.resolve() for path in extra_write)]:
         wrapped.extend(("--bind", str(path), str(path)))
-    if harness == "qwen" and (home / ".qwen").exists():
-        wrapped.extend(("--bind", str(home / ".qwen"), str(home / ".qwen")))
-    if harness == "codex":
-        auth = codex_home()
-        if not auth.is_dir():
-            raise RuntimeError(f"Codex home does not exist: {auth}")
-        wrapped.extend(("--bind", str(auth), str(auth)))
-        wrapped.extend(("--setenv", "CODEX_HOME", str(auth)))
-    if harness == "whale":
-        state = whale_home()
-        if not state.is_dir():
-            raise RuntimeError(f"Whale home does not exist: {state}; run whale setup first")
-        wrapped.extend(("--bind", str(state), str(state)))
-        wrapped.extend(("--setenv", "WHALE_HOME", str(state)))
-        for name in ("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "WHALE_API"):
-            if value := os.environ.get(name):
-                wrapped.extend(("--setenv", name, value))
+    wrapped.extend(model.sandbox_binds(harness))
 
     # Everything above was mounted onto a fresh tmpfs root; sealing it stops
     # stray writes from landing in a scratch skeleton that silently disappears.
@@ -575,19 +346,19 @@ def reference_changes(project: Path, conversion: Path) -> list[str]:
     return changed
 
 
-def check_references(project: Path, output: Path, conversion: Path, recorder=None) -> None:
-    """Check finished RTL against fresh samples from both reference versions."""
+def check_references(project: Path, output: Path, conversion: Path, recorder) -> None:
+    """Measure finished RTL against the original project, not the agent's copy.
+
+    The agent can edit anything in its workspace (the copied Python, params and
+    IO/), so the closing simulation uses the original reference. It regenerates
+    IO/tb.sv, which the implementation run (with the original params) elaborates.
+    """
     changed = reference_changes(project, conversion)
     results = []
-    for label, reference in (("copied", None), ("original", project)):
-        if recorder:
-            reply = recorder.evaluate("sim", [], label)
-            status, printed = reply["exit"], reply["output"]
-        else:
-            extra = [] if reference is None else [str(reference)]
-            extra.extend(("--io", str(conversion / "final_checks" / label)))
-            status, printed = evald.evaluate("sim", extra, output)
-        results.append((label, status, printed))
+    sim = recorder.evaluate("sim", [], "original")
+    results.append(("original simulation", sim["exit"], sim["output"]))
+    synth = recorder.evaluate("synth", ["--implement"], "original")
+    results.append(("original implementation", synth["exit"], synth["output"]))
 
     report = conversion / "reference_check.log"
     try:
@@ -597,14 +368,14 @@ def check_references(project: Path, output: Path, conversion: Path, recorder=Non
             stream.write("Changed Python/parameter files: "
                          + (", ".join(changed) if changed else "none") + "\n")
             for label, status, printed in results:
-                stream.write(f"\n=== {label} reference (exit {status}) ===\n{printed}")
+                stream.write(f"\n=== {label} (exit {status}) ===\n{printed}")
     except OSError as error:
         raise RuntimeError(f"cannot write reference check: {error}") from error
 
     print(f"changed reference files: {', '.join(changed) if changed else 'none'}")
     for label, status, printed in results:
         metrics = evald.measurements(printed)
-        print(f"final {label} simulation: {'completed' if status == 0 else 'failed'}"
+        print(f"final {label}: {'completed' if status == 0 else 'failed'}"
               f" {metrics}; details: {report}")
     if any(status for _, status, _ in results):
         raise RuntimeError(f"final reference check failed; see {report}")
@@ -612,16 +383,32 @@ def check_references(project: Path, output: Path, conversion: Path, recorder=Non
 
 def run_one(args: argparse.Namespace, harness: str) -> int:
     project, output, conversion = validate(args)
-    prompt = make_prompt(project, output, conversion, args.extra_prompt, args.prompt_version)
+    session = args.session
+    if session:
+        previous = read_run(conversion)
+        status = previous.get("status", "unknown reason")
+        if args.retarget_from:
+            prompt = RETARGET_PROMPT.format(status=status, name=project.name, project=project,
+                                            previous=args.retarget_from.name)
+        else:
+            prompt = RESUME_PROMPT.format(status=status)
+        if args.extra_prompt.strip():
+            prompt += "\n\n" + args.extra_prompt.strip()
+    else:
+        prompt = make_prompt(project, conversion, args.extra_prompt)
+        # Claude takes its session id from us; Codex assigns its thread id on start.
+        session = {"harness": harness, "model": args.model, "input": str(project),
+                   "reasoning_effort": args.reasoning_effort,
+                   "session_id": str(uuid.uuid4()) if harness == "claude" else None,
+                   "created_utc": datetime.now(timezone.utc).isoformat(), "resumes": []}
+    resuming = bool(args.session)
     writable = workspace(conversion)
     with tempfile.TemporaryDirectory(prefix="vrp-service-") as runtime_name:
         runtime = Path(runtime_name)
         service, stubs = runtime / "run", runtime / "bin"
         service.mkdir()
         evald.install_clients(stubs, service / "evald.sock")
-        agent_command = (qwen_command(args, prompt) if harness == "qwen" else
-                         [args.codex, "app-server"] if harness == "codex" else
-                         whale_command(args, prompt))
+        agent_command = model.command(args, harness, prompt, session["session_id"], resuming)
         command = sandbox_command(agent_command, project, conversion, writable,
                                   service, stubs, args.allow_write, harness)
         if args.dry_run:
@@ -631,30 +418,56 @@ def run_one(args: argparse.Namespace, harness: str) -> int:
             print("\nprompt:\n" + prompt)
             return 0
 
-        prepare_layout(project, conversion)
-        if args.prompt_version == "v2":
-            (conversion / "TOOL_GUIDE.md").write_text(evald.TOOL_GUIDE)
-        (conversion / "prompt.txt").write_text(prompt)
+        if resuming:
+            archived = archive_run(conversion)
+            session["resumes"].append({"started_utc": datetime.now(timezone.utc).isoformat(),
+                                       "previous_run": str(archived.relative_to(conversion))})
+            if args.retarget_from:
+                prepare_layout(project, conversion, retarget=True)
+                session["resumes"][-1]["retargeted_from"] = session["input"]
+                session["input"] = str(project)
+                print(f"retargeted {conversion} from {args.retarget_from} to {project}")
+            print(f"resuming {harness} session {session['session_id']}; previous run: {archived}")
+        else:
+            prepare_layout(project, conversion)
+        if harness in RESUMABLE:
+            save_session(conversion, session)
+        (conversion / "TOOL_GUIDE.md").write_text(evald.TOOL_GUIDE)
         usage = codex_run.Usage(args.token_budget, args.token_weights)
-        recorder = evald.Recorder(project, output, usage if harness == "codex" else None)
+        log = conversion / "convert.log"
+        log.write_text("")
+        recorder = evald.Recorder(project, output, usage if harness in ("codex", "claude") else None, log)
+        toolbox = evald.Toolbox(conversion, log)
         ready = threading.Event()
         # The service owns the toolchain and outlives nothing: it is a daemon
         # thread, so it goes away with this process however the run ends.
         threading.Thread(target=evald.serve,
                          args=(service / "evald.sock", project, output,
-                               conversion / "evald.jsonl", recorder, ready),
+                               conversion / "evald.jsonl", recorder, ready, toolbox),
                          daemon=True).start()
         if not ready.wait(5):
             raise RuntimeError("evaluation service did not start")
-        log = conversion / "convert.log"
         print(f"running {harness} in {conversion}")
         print(f"log: {log}")
         if harness == "codex":
+            def on_thread(thread_id):
+                session["session_id"] = thread_id
+                save_session(conversion, session)
             returncode, result = codex_run.run(command, conversion, prompt,
-                                             args.model.partition(":")[2], usage, terminate, log)
+                                             args.model.partition(":")[2], usage, terminate, log,
+                                             reasoning_effort=args.reasoning_effort,
+                                             resume_thread=session["session_id"] if resuming else None,
+                                             on_thread=on_thread)
+            print(f"agent stopped: {result['status']}; weighted tokens: {result['weighted_tokens']}")
+        elif harness == "claude":
+            try:
+                returncode, result = claude_run.run(command, conversion, prompt, usage, terminate, log,
+                                                    reasoning_effort=args.reasoning_effort)
+            except KeyboardInterrupt:
+                raise RuntimeError(f"{harness} was interrupted; see {log}")
             print(f"agent stopped: {result['status']}; weighted tokens: {result['weighted_tokens']}")
         else:
-            with log.open("w") as stream:
+            with log.open("a") as stream:
                 try:
                     process = subprocess.Popen(command, cwd=conversion, text=True,
                                                stdin=subprocess.DEVNULL,
@@ -667,6 +480,8 @@ def run_one(args: argparse.Namespace, harness: str) -> int:
                 except KeyboardInterrupt:
                     terminate(process)
                     raise RuntimeError(f"{harness} was interrupted; see {log}")
+        # The agent is gone; its Tcl sessions would only hold memory.
+        toolbox.shutdown()
         # Even a budget-exhausted or failed agent leaves an independently checked result.
         check_error = None
         try:
@@ -677,6 +492,8 @@ def run_one(args: argparse.Namespace, harness: str) -> int:
             tail = log.read_text(errors="replace").splitlines()[-40:]
             if tail:
                 print("\n".join(tail), file=sys.stderr)
+            if harness in RESUMABLE:
+                print(f"continue with: python convert.py --resume {conversion}", file=sys.stderr)
             raise RuntimeError(f"{harness} exited with status {returncode}; see {log}")
         if check_error:
             raise check_error
@@ -696,12 +513,13 @@ def run_batch(args: argparse.Namespace) -> int:
             raise ValueError(f"batch output is not a directory: {batch}")
         if batch.exists() and any(batch.iterdir()):
             raise ValueError(f"batch directory is not empty: {batch}")
-        details = model_info(args, projects)
+        details = batch_info(args, projects)
         batch.mkdir(parents=True, exist_ok=True)
         write_model_info(batch, details)
         source_archive = batch / "harness_sources"
         source_archive.mkdir()
         for name in details["harness_sources_sha256"]:
+            (source_archive / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, source_archive / name)
         print(f"model settings: {batch / 'model_info.yaml'}", flush=True)
     failures = []
@@ -711,11 +529,13 @@ def run_batch(args: argparse.Namespace) -> int:
         command = [sys.executable, str(runner), "-m", args.model,
                    "-i", str(project), "-o", str(output),
                    "--qwen", args.qwen, "--codex", args.codex,
-                   "--whale", args.whale]
+                   "--claude", args.claude, "--whale", args.whale]
         command.extend(("--token-budget", str(args.token_budget), "--token-weights",
-                        *map(str, args.token_weights), "--prompt-version", args.prompt_version))
+                        *map(str, args.token_weights)))
         if args.qwen_model:
             command.extend(("--qwen-model", args.qwen_model))
+        if args.reasoning_effort is not None:
+            command.extend(("--reasoning-effort", args.reasoning_effort))
         if args.extra_prompt:
             command.extend(("--extra-prompt", args.extra_prompt))
         for path in args.allow_write:
@@ -735,17 +555,18 @@ def run(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     if len(argv) == 2 and argv[0] == "--complete-models":
-        complete_models(argv[1])
+        model.complete_models(argv[1])
         return 0
     args = arguments(argv)
+    if args.resume:
+        load_session(args)
+    elif args.model is None or (args.input is None and args.test is None):
+        raise ValueError("-m and one of -i/-t are required unless --resume names a "
+                         f"conversion directory with {SESSION}")
     import math
     if any(not math.isfinite(v) or v < 0 for v in [args.token_budget, *args.token_weights]) or not any(args.token_weights):
         raise ValueError("token budget and weights must be finite and nonnegative, with a positive weight")
-    harness, separator, model = args.model.partition(":")
-    if harness not in ("qwen", "codex", "whale") or (separator and not model):
-        raise ValueError("-m must be qwen, codex, whale, or HARNESS:MODEL")
-    if args.qwen_model and (harness != "qwen" or separator):
-        raise ValueError("--qwen-model requires -m qwen without a model suffix")
+    harness = model.check(args)
     if args.test:
         return run_batch(args)
     if args.output is None:

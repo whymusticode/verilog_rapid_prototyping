@@ -230,6 +230,8 @@ def vivado(files: list[Path], rtl_dir: Path, work: Path, top: str, part: str,
            ) -> tuple[str, str, str, list[dict], str]:
     sources = " ".join(shlex.quote(str(path)) for path in files)
     copy_memories(rtl_dir, work)
+    for stale in ("post_synth.dcp", "post_route.dcp"):
+        (work / stale).unlink(missing_ok=True)
     (work / "rapid.xdc").write_text(
         f"create_clock -name aclk -period {period_ns:.3f} [get_ports aclk]\n")
     # Out-of-context synthesis: no I/O buffers are inserted, so the numbers
@@ -240,10 +242,12 @@ create_project -in_memory -part {part}
 read_verilog -sv [list {sources}]
 read_xdc rapid.xdc
 synth_design -top {top} -part {part} -mode out_of_context{generic_arg}
+write_checkpoint -force post_synth.dcp
 {"opt_design" if implement else ""}
 {"place_design" if implement else ""}
 {"phys_opt_design" if implement else ""}
 {"route_design" if implement else ""}
+{"write_checkpoint -force post_route.dcp" if implement else ""}
 report_utilization -file utilization.rpt
 report_timing_summary -file timing.rpt
 set paths [get_timing_paths -setup -max_paths {max(paths, 1)} -nworst 1]
@@ -341,10 +345,9 @@ def main() -> int:
     generics = {}
     if tb.exists():
         text = tb.read_text()
-        for key in ("WIDTH", "FRAC", "N", "IN_LANES", "OUT_LANES"):
-            match = re.search(rf"localparam integer {key}\s*=\s*(\d+);", text)
-            if match:
-                generics[key] = int(match.group(1))
+        # The testbench marks every parameter it overrides on the DUT.
+        for key, value in re.findall(r"localparam integer (\w+)\s*=\s*(\d+);\s*// DUT parameter", text):
+            generics[key] = int(value)
     if args.work:
         args.work.mkdir(parents=True, exist_ok=True)
     with (contextlib.nullcontext(str(args.work.resolve())) if args.work else

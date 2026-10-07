@@ -1,0 +1,26 @@
+name: Python LOC
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  count-loc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Count Python lines in root folder
+        run: |
+          python count_loc.py | tee loc.txt
+          {
+            echo "## Python lines of code (root folder, non-blank)"
+            echo '```'
+            cat loc.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

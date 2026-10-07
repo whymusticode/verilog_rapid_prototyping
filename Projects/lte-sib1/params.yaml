@@ -1,0 +1,22 @@
+part: xc7z010clg225-1
+# Stream element formats: one input sample is complex 12-bit ADC codes (I, Q);
+# one output element is a bit. How many travel per AXI beat is the RTL's choice.
+input: {bits: 12, frac: 0, signed: true}
+output: {bits: 1, frac: 0, signed: false}
+sim_samples: 614400          # 40 ms: at least one even frame with its MIB and SIB1
+n_rb: 50                     # 10 MHz cell
+ports: [1, 2, 4]             # CRS antenna ports, drawn per cell
+extended_phich: 0.25         # probability of extended PHICH duration (forces CFI 3)
+snr_db: [0, 3, 6, 10, 20, 30]  # per-sample SNR of the whole downlink, drawn per cell
+clock_ppm: 10                # Pluto crystal error: carrier offset and sample clock together
+carrier_hz: 2132500000       # band 4/66 downlink, sets the carrier offset per ppm
+traffic: 0.5                 # probability that a PRB carries other users' data
+adc_rms: 300                 # ADC RMS level in codes (full scale 2047)
+max_code_rate: 0.75          # SIB1 allocations are drawn below this rate
+iterations: 8                # turbo iterations (CRC24A stops early)
+approximate: 1               # max-log turbo decoding
+time_budget_s: 40
+target:
+  frequency: 100000000
+  # 10 MHz LTE: 15.36 MS/s, so 6.51 clock cycles per ADC sample at 100 MHz.
+  sample_rate: 15360000
